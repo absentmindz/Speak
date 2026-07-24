@@ -39,7 +39,15 @@
 
 ## 🖼️ Screenshots
 
-> *(Screenshots coming soon)*
+<p align="center">
+  <img src="docs/screenshots/main-window.png" alt="Speak main window — dictation history and transcript view" width="780"/>
+  <br/><em>Main window — dictation history, live transcript, and engine selector</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/settings-panel.png" alt="Speak settings panel — TTS engine and voice configuration" width="780"/>
+  <br/><em>Settings panel — TTS engine, voice profiles, and language options</em>
+</p>
 
 ---
 
@@ -151,13 +159,10 @@ git push origin v1.0.0
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/my-feature`)
-3. Commit your changes (`git commit -m 'Add some feature'`)
-4. Push to the branch (`git push origin feature/my-feature`)
-5. Open a Pull Request
+Contributions are welcome! Please read our [**CONTRIBUTING.md**](CONTRIBUTING.md) for full details on:
+- Reporting bugs and requesting features
+- Setting up a local development environment
+- The pull request process and coding style guidelines
 
 ---
 

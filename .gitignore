@@ -34,6 +34,7 @@ publish-output/
 appsettings.json
 appsettings.json.bak*
 *.bak
+*.bak-*
 
 # ── Python TTS / Whisper virtual environments ────────
 .qwen-tts-env/
