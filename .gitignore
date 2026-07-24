@@ -1,0 +1,118 @@
+## =====================================================
+## Speak — .gitignore
+## =====================================================
+
+# ── .NET build outputs ────────────────────────────────
+[Bb]in/
+[Oo]bj/
+publish/
+publish-output/
+*.user
+*.suo
+*.userprefs
+*.userosscache
+*.sln.docstates
+.vs/
+*.aps
+*.ncb
+*.opendb
+*.opensdf
+*.sdf
+*.cachefile
+*.VC.db
+*.VC.VC.opendb
+
+# ── Compiled .NET artifacts ──────────────────────────
+*.exe
+*.dll
+*.pdb
+*.mdb
+*.nupkg
+*.snupkg
+
+# ── Personal settings (contains local machine paths) ─
+appsettings.json
+appsettings.json.bak*
+*.bak
+
+# ── Python TTS / Whisper virtual environments ────────
+.qwen-tts-env/
+.whisper-env/
+*.env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+
+# ── Large model weights (never commit binary models) ─
+*.pt
+*.pth
+*.onnx
+*.bin
+*.safetensors
+*.gguf
+
+# ── Audio/cache/output files ─────────────────────────
+cache/
+tts/
+voices/
+*.wav
+*.mp3
+*.ogg
+*.flac
+*.mp4
+
+# ── Logs and crash reports ───────────────────────────
+logs/
+crashes/
+*.log
+
+# ── Packaging build artifacts ────────────────────────
+packaging/stage/
+packaging/output/
+packaging/downloads/
+packaging/artifacts/
+*.zip
+*.exe.bak
+
+# ── InnoSetup compiled output ────────────────────────
+packaging/*.exe
+
+# ── Installer backups ────────────────────────────────
+install-backups/
+change-backups/
+
+# ── Latest/ runtime output folder ────────────────────
+Latest/
+
+# ── Deprecated files ─────────────────────────────────
+*.deprecated
+
+# ── BAML compiled outputs (intermediate) ─────────────
+# (keep .baml source files that are tracked resources)
+
+# ── OS files ─────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Editor / IDE ──────────────────────────────────────
+.idea/
+*.swp
+*~
+.vscode/settings.json
+.vscode/launch.json
+
+# ── NuGet ────────────────────────────────────────────
+*.nupkg
+packages/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# ── dotnet SDK local install ─────────────────────────
+.dotnet8/
+
+# ── Agent workspace ──────────────────────────────────
+.agents/

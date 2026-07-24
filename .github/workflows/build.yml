@@ -1,0 +1,65 @@
+name: Build & Publish
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore Speak.csproj
+
+      - name: Build (Debug)
+        run: dotnet build Speak.csproj -c Debug --no-restore
+
+      - name: Build (Release)
+        run: dotnet build Speak.csproj -c Release --no-restore
+
+      - name: Publish (Self-contained)
+        run: |
+          dotnet publish Speak.csproj `
+            -c Release `
+            -o publish-output `
+            --self-contained true `
+            -p:IncludeNativeLibrariesForSelfExtract=true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Speak-win-x64
+          path: publish-output/
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Speak-win-x64
+          path: release-artifact
+
+      - name: Compress release
+        shell: pwsh
+        run: |
+          Compress-Archive -Path release-artifact/* -DestinationPath Speak-${{ github.ref_name }}.zip
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Speak-${{ github.ref_name }}.zip
+          generate_release_notes: true
