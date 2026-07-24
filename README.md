@@ -40,28 +40,28 @@
 ## 🖼️ Screenshots
 
 <p align="center">
-  <img src="docs/screenshots/main.png" alt="Speak Main Interface" width="780"/>
-  <br/><em>Main interface — seamless text processing</em>
+  <img src="docs/screenshots/main.png" alt="Speak" width="780"/>
+  <br/><em>Speak. Your voice, perfectly written. Speak naturally. Paste polished text.</em>
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/history.png" alt="Speak History" width="780"/>
-  <br/><em>Detailed dictation history with transcript archiving</em>
+  <img src="docs/screenshots/history.png" alt="History" width="780"/>
+  <br/><em>History. Browse every saved local transcript and reopen the messages worth refining.</em>
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/voice-profile.png" alt="Speak Voice Profile" width="780"/>
-  <br/><em>Voice profile and personalized accuracy tracking</em>
+  <img src="docs/screenshots/voice-profile.png" alt="Voice Profile" width="780"/>
+  <br/><em>Voice Profile. Your words, corrections, and accuracy in one quiet view. Your speaking pattern.</em>
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/dictionary.png" alt="Speak Dictionary" width="780"/>
-  <br/><em>Smart dictionary to learn specialized vocabulary</em>
+  <img src="docs/screenshots/dictionary.png" alt="Dictionary" width="780"/>
+  <br/><em>Dictionary. Teach Speak the words, names, products, and symbols it should always write correctly.</em>
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/audio-studio.png" alt="Speak Audio Studio" width="780"/>
-  <br/><em>Audio Studio for local text-to-speech generation</em>
+  <img src="docs/screenshots/audio-studio.png" alt="Audio Studio" width="780"/>
+  <br/><em>Audio Studio. Generate local voices through the CUDA worker, preview outputs, and keep models offloaded when idle.</em>
 </p>
 
 ---
