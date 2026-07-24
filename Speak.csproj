@@ -40,15 +40,7 @@
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="8.0.0" />
-    <Reference Include="NAudio.WinMM">
-      <HintPath>..\MaxFlowKeyboard\dist\Speak-win-x64\NAudio.WinMM.dll</HintPath>
-    </Reference>
-    <Reference Include="NAudio.Core">
-      <HintPath>..\MaxFlowKeyboard\dist\Speak-win-x64\NAudio.Core.dll</HintPath>
-    </Reference>
-    <Reference Include="NAudio.WinForms">
-      <HintPath>..\MaxFlowKeyboard\dist\Speak-win-x64\NAudio.WinForms.dll</HintPath>
-    </Reference>
+    <PackageReference Include="NAudio" Version="2.2.1" />
   </ItemGroup>
   <ItemGroup>
     <None Update="appsettings.json">
