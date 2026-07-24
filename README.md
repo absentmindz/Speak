@@ -40,13 +40,28 @@
 ## 🖼️ Screenshots
 
 <p align="center">
-  <img src="docs/screenshots/main-window.png" alt="Speak main window — dictation history and transcript view" width="780"/>
-  <br/><em>Main window — dictation history, live transcript, and engine selector</em>
+  <img src="docs/screenshots/main.png" alt="Speak Main Interface" width="780"/>
+  <br/><em>Main interface — seamless text processing</em>
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/settings-panel.png" alt="Speak settings panel — TTS engine and voice configuration" width="780"/>
-  <br/><em>Settings panel — TTS engine, voice profiles, and language options</em>
+  <img src="docs/screenshots/history.png" alt="Speak History" width="780"/>
+  <br/><em>Detailed dictation history with transcript archiving</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/voice-profile.png" alt="Speak Voice Profile" width="780"/>
+  <br/><em>Voice profile and personalized accuracy tracking</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/dictionary.png" alt="Speak Dictionary" width="780"/>
+  <br/><em>Smart dictionary to learn specialized vocabulary</em>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/audio-studio.png" alt="Speak Audio Studio" width="780"/>
+  <br/><em>Audio Studio for local text-to-speech generation</em>
 </p>
 
 ---
