@@ -41,6 +41,7 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="8.0.0" />
     <PackageReference Include="NAudio" Version="2.2.1" />
+    <PackageReference Include="System.Resources.ResourceManager" Version="8.0.0" />
   </ItemGroup>
   <ItemGroup>
     <None Update="appsettings.json">
