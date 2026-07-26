@@ -32,11 +32,16 @@ public sealed class AppConfig
         }
     }
 
-    public static AppConfig Load()
+    public static AppConfig Load(string? basePath = null)
     {
+        string configurationRoot = System.IO.Path.GetFullPath(
+            string.IsNullOrWhiteSpace(basePath)
+                ? AppContext.BaseDirectory
+                : basePath);
+
         var builder = new ConfigurationBuilder()
-            .SetBasePath(AppContext.BaseDirectory)
-            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+            .SetBasePath(configurationRoot)
+            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false);
 
         var config = builder.Build();
         var loadedConfig = new AppConfig();
@@ -109,10 +114,10 @@ public sealed class AppConfig
 
 public sealed class PathsConfig
 {
-    public string ToolsRoot { get; init; } = @"D:\Speak";
-    public string ModelsRoot { get; init; } = @"D:\Models";
-    public string WorkspaceRoot { get; init; } = @"E:\workspace";
-    public string CacheRoot { get; init; } = @"D:\Speak\cache";
+    public string ToolsRoot { get; init; } = "{AppDir}";
+    public string ModelsRoot { get; init; } = "";
+    public string WorkspaceRoot { get; init; } = "";
+    public string CacheRoot { get; init; } = "{LocalAppData}\\Speak\\cache";
 }
 
 public sealed class TranscriptionConfig
@@ -121,9 +126,9 @@ public sealed class TranscriptionConfig
     public string DefaultModel { get; init; } = "whisper-large-v3";
     public string DefaultDevice { get; init; } = "cuda";
     public int ModelKeepAliveMinutes { get; init; } = 10;
-    public string WhisperPythonPath { get; init; } = @"D:\whisper-gpu-env\Scripts\python.exe";
+    public string WhisperPythonPath { get; init; } = "";
     public string WhisperWrapperPath { get; init; } = "";
-    public string WhisperModelPath { get; init; } = @"D:\Models\whisper\large-v3.pt";
+    public string WhisperModelPath { get; init; } = "{ModelsRoot}\\whisper\\large-v3.pt";
     public string WhisperServerScriptPath { get; init; } = "";
 }
 
@@ -134,12 +139,12 @@ public sealed class TtsConfig
     public string DefaultLanguage { get; init; } = "English";
     public string OutputRoot { get; init; } = "";
     public string ChatterboxPythonPath { get; init; } = "";
-    public string ComfyUIPythonPath { get; init; } = @"D:\Speak\.qwen-tts-env\Scripts\python.exe";
+    public string ComfyUIPythonPath { get; init; } = "";
     public string TortoisePythonPath { get; init; } = "";
-    public string QwenTtsCustomVoiceModelPath { get; init; } = @"D:\Models\Qwen3-TTS-12Hz-1.7B-CustomVoice";
-    public string QwenTtsBaseModelPath { get; init; } = @"D:\Models\Qwen3-TTS-12Hz-1.7B-Base";
+    public string QwenTtsCustomVoiceModelPath { get; init; } = "{ModelsRoot}\\Qwen3-TTS-12Hz-1.7B-CustomVoice";
+    public string QwenTtsBaseModelPath { get; init; } = "{ModelsRoot}\\Qwen3-TTS-12Hz-1.7B-Base";
     public string QwenTtsVoiceDesignModelPath { get; init; } = "";
-    public string TortoiseModelDir { get; init; } = @"D:\Models\tortoise-tts\models";
+    public string TortoiseModelDir { get; init; } = "{ModelsRoot}\\tortoise-tts\\models";
 }
 
 public sealed class CloudSttConfig
@@ -169,7 +174,7 @@ public sealed class UiConfig
     public string Theme { get; init; } = "dark";
     public bool KeepHistory { get; init; } = true;
     public bool ShowCompletionToast { get; init; } = true;
-    public bool AutoLearnCorrections { get; init; } = true;
+    public bool AutoLearnCorrections { get; init; } = false;
     public bool ShowShortcutWidget { get; init; } = true;
     public bool MinimizeToTray { get; init; } = true;
     public bool StartWithWindows { get; init; } = false;

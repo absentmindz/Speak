@@ -1,65 +1,252 @@
-name: Build & Publish
+name: Build, test, and publish
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
     tags: ["v*"]
   pull_request:
-    branches: [main, master]
+    branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "1"
+
 jobs:
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
+        with:
+          fail-on-severity: moderate
+
   build:
     runs-on: windows-latest
+    timeout-minutes: 35
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-dotnet@v4
+      - name: Verify release tag matches project version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          [xml]$props = Get-Content -LiteralPath ./Directory.Build.props -Raw
+          $version = $props.SelectSingleNode(
+            "/Project/PropertyGroup/VersionPrefix").InnerText.Trim()
+          $expectedTag = "v$version"
+          if ($env:GITHUB_REF_NAME -cne $expectedTag) {
+            throw "Tag $env:GITHUB_REF_NAME does not match project version $expectedTag."
+          }
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           dotnet-version: "8.0.x"
+          cache: true
+          cache-dependency-path: |
+            packages.lock.json
+            tests/Speak.Tests/packages.lock.json
 
-      - name: Restore
-        run: dotnet restore Speak.csproj
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.11"
 
-      - name: Build (Debug)
-        run: dotnet build Speak.csproj -c Debug --no-restore
+      - name: Scan tracked files for secrets and personal paths
+        shell: pwsh
+        run: ./packaging/verify-repository.ps1
 
-      - name: Build (Release)
-        run: dotnet build Speak.csproj -c Release --no-restore
+      - name: Parse PowerShell scripts
+        shell: pwsh
+        run: |
+          Get-ChildItem -Path . -Recurse -File -Filter *.ps1 |
+            Where-Object { $_.FullName -notmatch '[\\/](bin|obj|publish-output)[\\/]' } |
+            ForEach-Object {
+              [void][scriptblock]::Create((Get-Content -LiteralPath $_.FullName -Raw))
+            }
 
-      - name: Publish (Self-contained)
+      - name: Compile Python worker source
+        shell: pwsh
+        run: |
+          python -m compileall -q tools
+          if ($LASTEXITCODE -ne 0) { throw "Python syntax validation failed." }
+
+      - name: Test Python worker security contracts
+        run: python -m unittest discover -s tools/tests -p "test_*.py" -v
+
+      - name: Audit Python dependency pins
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check pip-audit==2.10.1
+          if ($LASTEXITCODE -ne 0) { throw "Could not install the pinned Python auditor." }
+          python -m pip_audit `
+            -r tools/requirements-whisper-cu126.lock.txt `
+            --no-deps --disable-pip --progress-spinner off
+          if ($LASTEXITCODE -ne 0) { throw "Whisper dependency audit failed." }
+          # qwen-tts 0.1.1 hard-pins Transformers 4.57.3. Speak forces
+          # offline, data-only model loading and blocks the affected Trainer,
+          # X-CLIP, LightGlue, and remote-kernel execution paths. Keep these
+          # exceptions narrow so every new advisory still fails the build.
+          python -m pip_audit `
+            -r tools/requirements-qwen-tts-cu126.lock.txt `
+            --no-deps --disable-pip --progress-spinner off `
+            --ignore-vuln PYSEC-2025-217 `
+            --ignore-vuln PYSEC-2026-2288 `
+            --ignore-vuln PYSEC-2026-2289 `
+            --ignore-vuln PYSEC-2026-2290
+          if ($LASTEXITCODE -ne 0) { throw "Qwen dependency audit failed." }
+
+      - name: Restore locked dependencies
+        run: dotnet restore Speak.sln --locked-mode
+
+      - name: Check NuGet advisories
+        run: dotnet list Speak.sln package --include-transitive --vulnerable
+
+      - name: Build
+        run: dotnet build Speak.sln -c Release --no-restore
+
+      - name: Test
+        run: >-
+          dotnet test tests/Speak.Tests/Speak.Tests.csproj
+          -c Release
+          --no-build
+          --collect "XPlat Code Coverage"
+          --results-directory TestResults
+
+      - name: Publish clean portable application
+        shell: pwsh
         run: |
           dotnet publish Speak.csproj `
             -c Release `
+            --no-restore `
             -o publish-output `
-            --self-contained true `
-            -p:IncludeNativeLibrariesForSelfExtract=true
+            -p:DebugType=None `
+            -p:DebugSymbols=false
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - name: Smoke-test and inspect publish artifact
+        shell: pwsh
+        run: ./packaging/verify-publish.ps1 -PublishRoot ./publish-output
+
+      - name: Generate SPDX SBOM
+        shell: pwsh
+        run: |
+          $toolRoot = Join-Path $env:RUNNER_TEMP "speak-sbom-tool"
+          dotnet tool install `
+            --tool-path $toolRoot `
+            Microsoft.Sbom.DotNetTool `
+            --version 4.1.5
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not install the pinned SBOM generator."
+          }
+
+          [xml]$props = Get-Content -LiteralPath ./Directory.Build.props -Raw
+          $version = $props.SelectSingleNode(
+            "/Project/PropertyGroup/VersionPrefix").InnerText.Trim()
+          $sbomTool = Join-Path $toolRoot "sbom-tool.exe"
+          & $sbomTool generate `
+            -b (Resolve-Path -LiteralPath ./publish-output).Path `
+            -bc (Resolve-Path -LiteralPath .).Path `
+            -pn Speak `
+            -pv $version `
+            -ps "Organization: Speak contributors" `
+            -nsb "https://github.com/absentmindz/Speak/sbom/" `
+            -nsu $env:GITHUB_SHA `
+            -V Information
+          if ($LASTEXITCODE -ne 0) {
+            throw "SBOM generation failed."
+          }
+
+          $manifest = Join-Path `
+            ./publish-output "_manifest/spdx_2.2/manifest.spdx.json"
+          if (-not (Test-Path -LiteralPath $manifest -PathType Leaf)) {
+            throw "The expected SPDX manifest was not generated."
+          }
+          Copy-Item -LiteralPath $manifest `
+            -Destination ./Speak.spdx.json
+
+      - name: Create portable ZIP and checksums
+        shell: pwsh
+        run: |
+          Compress-Archive -Path ./publish-output/* `
+            -DestinationPath ./Speak-win-x64-portable.zip `
+            -CompressionLevel Optimal
+          $releaseFiles = @(
+            "./Speak-win-x64-portable.zip",
+            "./Speak.spdx.json"
+          )
+          $checksums = foreach ($file in $releaseFiles) {
+            $item = Get-Item -LiteralPath $file
+            $hash = (Get-FileHash -Algorithm SHA256 `
+              -LiteralPath $item.FullName).Hash.ToLowerInvariant()
+            "$hash  $($item.Name)"
+          }
+          $checksums |
+            Set-Content -LiteralPath ./SHA256SUMS.txt -Encoding ascii
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: test-results
+          path: TestResults/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload portable artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Speak-win-x64
-          path: publish-output/
+          path: |
+            Speak-win-x64-portable.zip
+            Speak.spdx.json
+            SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: windows-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
 
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download verified build artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: Speak-win-x64
           path: release-artifact
 
-      - name: Compress release
+      - name: Create GitHub release
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          Compress-Archive -Path release-artifact/* -DestinationPath Speak-${{ github.ref_name }}.zip
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: Speak-${{ github.ref_name }}.zip
-          generate_release_notes: true
+          gh release create "$env:GITHUB_REF_NAME" `
+            ./release-artifact/Speak-win-x64-portable.zip `
+            ./release-artifact/Speak.spdx.json `
+            ./release-artifact/SHA256SUMS.txt `
+            --repo "$env:GITHUB_REPOSITORY" `
+            --verify-tag `
+            --generate-notes `
+            --title "Speak $env:GITHUB_REF_NAME"

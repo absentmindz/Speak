@@ -1,0 +1,26 @@
+<Project>
+  <PropertyGroup>
+    <VersionPrefix>0.5.1</VersionPrefix>
+    <AssemblyVersion>0.5.1.0</AssemblyVersion>
+    <FileVersion>0.5.1.0</FileVersion>
+    <Company>Speak contributors</Company>
+    <Authors>Speak contributors</Authors>
+    <Product>Speak</Product>
+    <Title>Speak</Title>
+    <Description>Privacy-conscious dictation and text-to-speech for Windows</Description>
+    <Copyright>Copyright © 2026 Speak contributors</Copyright>
+    <RepositoryUrl>https://github.com/absentmindz/Speak</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>8.0-recommended</AnalysisLevel>
+    <!-- Honor the source's nullable annotations without turning the recovered
+         legacy UI into an all-at-once nullable-warning migration. -->
+    <Nullable>annotations</Nullable>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <NuGetAudit>true</NuGetAudit>
+    <WarningsAsErrors>$(WarningsAsErrors);NU1901;NU1902;NU1903;NU1904</WarningsAsErrors>
+  </PropertyGroup>
+</Project>

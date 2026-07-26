@@ -6,6 +6,8 @@ namespace MaxFlowWindows.Core;
 
 public static class SpeakDataPaths
 {
+	internal const string LegacyMigrationMarkerFileName = ".legacy-import-complete-v1";
+
 	private static string? _cachedDataRoot;
 	private static readonly object _lock = new();
 
@@ -25,30 +27,6 @@ public static class SpeakDataPaths
 				return _cachedDataRoot;
 			}
 
-			try
-			{
-				var appConfig = AppConfig.Current;
-				if (!string.IsNullOrWhiteSpace(appConfig.Paths.ModelsRoot))
-				{
-					string legacyRoot = Path.GetFullPath(Path.Combine(appConfig.Paths.ModelsRoot, "..", "OpenClawData", "Speak"));
-					if (Directory.Exists(legacyRoot))
-					{
-						_cachedDataRoot = legacyRoot;
-						return _cachedDataRoot;
-					}
-				}
-			}
-			catch
-			{
-			}
-
-			string existingDDriveRoot = "D:\\OpenClawData\\Speak";
-			if (Directory.Exists(existingDDriveRoot))
-			{
-				_cachedDataRoot = existingDDriveRoot;
-				return _cachedDataRoot;
-			}
-
 			_cachedDataRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Speak");
 			return _cachedDataRoot;
 		}
@@ -65,6 +43,25 @@ public static class SpeakDataPaths
 	public static void CopyLegacyLocalDataIfNeeded(string destinationRoot)
 	{
 		Directory.CreateDirectory(destinationRoot);
+
+		// An explicit data root is an isolation boundary. Importing files from the
+		// user's normal LocalAppData directory into that location would be
+		// surprising and can copy private history, recordings, and logs into a
+		// portable, test, or shared directory without consent.
+		if (!ShouldMigrateLegacyLocalData(destinationRoot))
+		{
+			return;
+		}
+
+		// Existing Speak data means this installation has already crossed the
+		// legacy boundary. Record completion without filling any files that the
+		// user may have deliberately cleared before this marker was introduced.
+		if (HasCurrentSpeakData(destinationRoot))
+		{
+			WriteLegacyMigrationMarker(destinationRoot);
+			return;
+		}
+
 		foreach (string item in LegacyLocalRoots())
 		{
 			if (Directory.Exists(item) && !SamePath(item, destinationRoot))
@@ -78,6 +75,46 @@ public static class SpeakDataPaths
 				CopyDirectoryFilesIfMissing(Path.Combine(item, "logs"), Path.Combine(destinationRoot, "logs"));
 			}
 		}
+
+		WriteLegacyMigrationMarker(destinationRoot);
+	}
+
+	internal static bool ShouldMigrateLegacyLocalData(string destinationRoot)
+	{
+		return string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("SPEAK_DATA_ROOT"))
+			&& !File.Exists(Path.Combine(destinationRoot, LegacyMigrationMarkerFileName));
+	}
+
+	private static bool HasCurrentSpeakData(string root)
+	{
+		string[] currentFiles = new string[5]
+		{
+			".onboarded",
+			"settings.json",
+			"vocabulary.json",
+			"history.json",
+			"keyboard-bridge.json"
+		};
+		foreach (string fileName in currentFiles)
+		{
+			if (File.Exists(Path.Combine(root, fileName)))
+			{
+				return true;
+			}
+		}
+
+		return Directory.Exists(Path.Combine(root, "recordings"))
+			|| Directory.Exists(Path.Combine(root, "logs"));
+	}
+
+	private static void WriteLegacyMigrationMarker(string destinationRoot)
+	{
+		// Keep the marker outside every data-file family that users can clear.
+		// Without it, clearing history could resurrect private legacy data on the
+		// next launch because the importer copies files only when they are missing.
+		File.WriteAllText(
+			Path.Combine(destinationRoot, LegacyMigrationMarkerFileName),
+			"Legacy data import completed.\n");
 	}
 
 	private static IEnumerable<string> LegacyLocalRoots()

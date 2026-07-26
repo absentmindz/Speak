@@ -1,21 +1,51 @@
 # Speak packaging
 
-This directory builds two distributable packages:
+The packaging process is intentionally split into independently verifiable
+artifacts:
 
-- `Speak-0.5.0-Complete-Setup.exe`: Speak, self-contained .NET, a shared portable Python 3.11 runtime, Torch/CUDA libraries, Whisper, Qwen TTS, FFmpeg, and the Microsoft Visual C++ runtime.
-- `Speak-0.5.0-Offline-Models.zip`: optional offline weights for Whisper large-v3, Qwen3 CustomVoice 1.7B, and Qwen3 Base 1.7B. Extract the ZIP before running its setup program; all `.bin` slices must remain beside the setup EXE.
+- `Speak-<version>-win-x64-portable.zip` contains the self-contained .NET
+  desktop application, the reviewed Python worker source files, the portable
+  configuration, and license notices.
+- `Speak-<version>-Setup.exe` installs the same application for the current
+  Windows user. It does not require administrator rights. During upgrades it
+  also recognizes a model root recorded by the earlier machine-wide installer.
+- The separately installed offline model pack is planned but production is
+  currently disabled. It will remain disabled until the repository contains
+  an audited, immutable provenance manifest for every model file.
 
-The application installer contains no user settings, history, recordings, environment variables, or API-key values. `GROQ_API_KEY` is only the name of the environment variable that a user may configure on the destination computer.
+Python, CUDA, FFmpeg, model weights, user settings, history, recordings,
+environment variables, and API keys are **not** copied from the build
+computer. Local Whisper and TTS therefore require a separately managed Python
+environment unless a future signed runtime package is provided.
 
-At installation time, the user chooses a models folder. Speak stores that folder in `HKLM\SOFTWARE\Speak\ModelsRoot`. At startup, model lookup follows this order:
+## Build
 
-1. `SPEAK_MODELS_ROOT`
-2. a configured folder with a validated Speak model layout
-3. the installer registry value when it contains a validated model layout
-4. validated common model folders on fixed drives
-5. the installer-selected folder, even when it is waiting for the optional model pack
-6. `%ProgramData%\Speak\Models`
+Prerequisites:
 
-The offline model pack writes the same registry value, so Speak detects its models after restart without editing personal settings.
+- the .NET 8 SDK selected by `global.json`;
+- Inno Setup 6 or 7 for installer builds.
 
-Final deliverables and their SHA-256 hashes are recorded in `artifacts\SHA256SUMS.txt`. The installer is not code-signed, so Windows may show an unknown-publisher warning. The destination computer still needs a compatible NVIDIA display driver for CUDA acceleration; the application runtimes and CUDA user-mode libraries are included.
+```powershell
+# Portable ZIP + app installer only
+.\packaging\build-packages.ps1 -SkipModelPack
+
+# Portable ZIP only
+.\packaging\build-packages.ps1 -SkipInstaller
+```
+
+Do not attempt a model-pack build yet. The script and Inno definition fail
+closed until model provenance, expected hashes and sizes, reparse-point
+handling, and extra-file rejection are independently auditable.
+
+The build validates the publish tree, emits a NuGet dependency inventory and
+build metadata, and writes SHA-256 hashes for every deliverable to
+`packaging/artifacts/SHA256SUMS.txt`. The application ZIP and installer do not
+contain model weights.
+
+## Release limitations
+
+Artifacts are reproducible from pinned NuGet lock files, but the Inno Setup
+executables are not currently Authenticode-signed. Windows may display an
+unknown-publisher warning. Do not describe an artifact as trusted or complete
+until its checksum, malware scan, license bundle, and—when available—digital
+signature have been independently verified.

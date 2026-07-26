@@ -1,6 +1,7 @@
 using System;
 using System.CodeDom.Compiler;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Windows;
@@ -47,7 +48,10 @@ public class App : Application
 	{
 		string detail = e.Exception?.ToString() ?? "Unknown dispatcher exception";
 		WriteCrashReport("DISPATCHER", detail);
-		e.Handled = true;
+		// A dispatcher exception may leave application state inconsistent.
+		// Record it, then let WPF terminate instead of keeping a broken process
+		// alive and making health checks appear successful.
+		e.Handled = false;
 	}
 
 	private static void WriteCrashReport(string category, string detail)
@@ -58,17 +62,23 @@ public class App : Application
 				SpeakDataPaths.ResolveDataRoot(), "crashes");
 			Directory.CreateDirectory(crashDir);
 
-			string timestamp = DateTimeOffset.Now.ToString("yyyyMMdd_HHmmss");
+			string timestamp = DateTimeOffset.Now.ToString(
+				"yyyyMMdd_HHmmss",
+				CultureInfo.InvariantCulture);
 			string path = Path.Combine(crashDir, $"crash_{timestamp}_{category}.txt");
 
 			var sb = new StringBuilder();
-			sb.AppendLine($"Speak Crash Report");
-			sb.AppendLine($"Category: {category}");
-			sb.AppendLine($"Timestamp: {DateTimeOffset.Now:O}");
-			sb.AppendLine($"Version: {typeof(App).Assembly.GetName().Version}");
-			sb.AppendLine($"OS: {Environment.OSVersion}");
-			sb.AppendLine($"Process: {Environment.ProcessPath}");
-			sb.AppendLine($"Working Set: {Environment.WorkingSet / 1024 / 1024} MB");
+			sb.AppendLine("Speak Crash Report");
+			sb.Append("Category: ").AppendLine(category);
+			sb.Append("Timestamp: ").AppendLine(
+				DateTimeOffset.Now.ToString("O", CultureInfo.InvariantCulture));
+			sb.Append("Version: ").AppendLine(
+				typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown");
+			sb.Append("OS: ").AppendLine(Environment.OSVersion.ToString());
+			sb.Append("Process: ").AppendLine(Environment.ProcessPath);
+			sb.Append("Working Set: ").Append(
+				(Environment.WorkingSet / 1024 / 1024).ToString(
+					CultureInfo.InvariantCulture)).AppendLine(" MB");
 			sb.AppendLine();
 			sb.AppendLine("=== Exception Details ===");
 			sb.AppendLine(detail);

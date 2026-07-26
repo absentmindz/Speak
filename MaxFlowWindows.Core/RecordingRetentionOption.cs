@@ -18,17 +18,17 @@ public sealed class RecordingRetentionOption
 		new RecordingRetentionOption
 		{
 			Days = 7,
-			Name = "Archive after 7 days"
+			Name = "Delete recordings after 7 days"
 		},
 		new RecordingRetentionOption
 		{
 			Days = 30,
-			Name = "Archive after 30 days"
+			Name = "Delete recordings after 30 days"
 		},
 		new RecordingRetentionOption
 		{
 			Days = 90,
-			Name = "Archive after 90 days"
+			Name = "Delete recordings after 90 days"
 		}
 	};
 }

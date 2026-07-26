@@ -27,9 +27,9 @@ public static class PortablePathResolver
 			return configured;
 		}
 
-		string registryPath = ExpandPath(FirstNonEmpty(
+		string registryPath = SelectRegistryModelsRoot(
 			ReadRegistryModelsRoot(Registry.CurrentUser),
-			ReadRegistryModelsRoot(Registry.LocalMachine)));
+			ReadRegistryModelsRoot(Registry.LocalMachine));
 		if (HasKnownModelLayout(registryPath))
 		{
 			return registryPath;
@@ -51,6 +51,26 @@ public static class PortablePathResolver
 		return !string.IsNullOrWhiteSpace(configured)
 			? configured
 			: Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Speak", "Models");
+	}
+
+	internal static string SelectRegistryModelsRoot(string currentUserPath, string localMachinePath)
+	{
+		string currentUser = ExpandPath(currentUserPath);
+		string localMachine = ExpandPath(localMachinePath);
+
+		// A stale or empty per-user installer path must not hide a valid model
+		// location written by an earlier machine-wide installer.
+		if (HasKnownModelLayout(currentUser))
+		{
+			return currentUser;
+		}
+
+		if (HasKnownModelLayout(localMachine))
+		{
+			return localMachine;
+		}
+
+		return FirstNonEmpty(currentUser, localMachine);
 	}
 
 	public static string ExpandPath(string value, string modelsRoot = "")

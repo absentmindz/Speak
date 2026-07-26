@@ -1,0 +1,149 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Window x:Class="MaxFlowWindows.ShortcutWidgetWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Icon="Speak.ico" Width="36" Height="36" WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True" Background="#00FFFFFF" ShowInTaskbar="False" ShowActivated="False" Topmost="True" xmlns:maxflowwindows="clr-namespace:MaxFlowWindows;assembly=Speak" Loaded="Window_Loaded" MouseEnter="Window_MouseEnter" MouseLeave="Window_MouseLeave" MouseLeftButtonDown="Window_MouseLeftButtonDown">
+  <FrameworkElement.Resources>
+    <ResourceDictionary>
+      <DropShadowEffect x:Key="WidgetShadow" Color="#101114" BlurRadius="14" ShadowDepth="2" Opacity="0.34" />
+      <Style x:Key="WidgetIconButton" TargetType="{x:Type Button}">
+        <Setter Property="Width" Value="24" />
+        <Setter Property="Height" Value="24" />
+        <Setter Property="Margin" Value="1,0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="FrameworkElement.Cursor" Value="Hand" />
+        <Setter Property="Background" Value="#1A1B1F" />
+        <Setter Property="BorderBrush" Value="#303136" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="#D8D3C7" />
+        <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Template">
+          <Setter.Value>
+            <ControlTemplate TargetType="{x:Type Button}">
+              <Border Name="ButtonBorder" Background="{TemplateBinding Control.Background}" BorderBrush="{TemplateBinding Control.BorderBrush}" BorderThickness="{TemplateBinding Control.BorderThickness}" CornerRadius="12">
+                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <ControlTemplate.Triggers>
+                <Trigger Property="UIElement.IsMouseOver" Value="True">
+                  <Setter TargetName="ButtonBorder" Property="Border.Background" Value="#26272B" />
+                  <Setter TargetName="ButtonBorder" Property="Border.BorderBrush" Value="#B8B1A4" />
+                </Trigger>
+              </ControlTemplate.Triggers>
+            </ControlTemplate>
+          </Setter.Value>
+        </Setter>
+      </Style>
+      <Style x:Key="WidgetCompactButton" TargetType="{x:Type Button}" BasedOn="{StaticResource WidgetIconButton}">
+        <Setter Property="Width" Value="36" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Background" Value="#17181B" />
+      </Style>
+    </ResourceDictionary>
+  </FrameworkElement.Resources>
+  <Grid Name="WidgetRoot" SnapsToDevicePixels="True">
+    <Border Name="WidgetShell" Background="#17181B" BorderBrush="#303136" BorderThickness="1" CornerRadius="18" Padding="3" Effect="{StaticResource WidgetShadow}">
+      <Grid>
+        <Grid Name="CompactPanel" HorizontalAlignment="Center" VerticalAlignment="Center">
+          <Button Name="CompactMicButton" Style="{StaticResource WidgetCompactButton}" ToolTip="Start or stop recording" AutomationProperties.Name="Start recording" Click="ToggleButton_Click">
+            <Grid Width="28" Height="26">
+              <TextBlock Name="CompactMicGlyph" Text="" FontFamily="Segoe MDL2 Assets" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              <StackPanel Name="CompactActivityPanel" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Width="30" Height="18" Visibility="Collapsed">
+                <Border Name="CompactBar1" Width="2" Height="15" Margin="1,0" Background="#85817A" CornerRadius="1" RenderTransformOrigin="0.5,1" VerticalAlignment="Bottom">
+                  <UIElement.RenderTransform>
+                    <ScaleTransform ScaleY="0.18" />
+                  </UIElement.RenderTransform>
+                </Border>
+                <Border Name="CompactBar2" Width="2" Height="15" Margin="1,0" Background="#A19B92" CornerRadius="1" RenderTransformOrigin="0.5,1" VerticalAlignment="Bottom">
+                  <UIElement.RenderTransform>
+                    <ScaleTransform ScaleY="0.28" />
+                  </UIElement.RenderTransform>
+                </Border>
+                <Border Name="CompactBar3" Width="2" Height="15" Margin="1,0" Background="#B8B1A4" CornerRadius="1" RenderTransformOrigin="0.5,1" VerticalAlignment="Bottom">
+                  <UIElement.RenderTransform>
+                    <ScaleTransform ScaleY="0.38" />
+                  </UIElement.RenderTransform>
+                </Border>
+                <Border Name="CompactBar4" Width="2" Height="15" Margin="1,0" Background="#D8D3C7" CornerRadius="1" RenderTransformOrigin="0.5,1" VerticalAlignment="Bottom">
+                  <UIElement.RenderTransform>
+                    <ScaleTransform ScaleY="0.48" />
+                  </UIElement.RenderTransform>
+                </Border>
+                <Border Name="CompactBar5" Width="2" Height="15" Margin="1,0" Background="#B8B1A4" CornerRadius="1" RenderTransformOrigin="0.5,1" VerticalAlignment="Bottom">
+                  <UIElement.RenderTransform>
+                    <ScaleTransform ScaleY="0.34" />
+                  </UIElement.RenderTransform>
+                </Border>
+                <Border Name="CompactBar6" Width="2" Height="15" Margin="1,0" Background="#A19B92" CornerRadius="1" RenderTransformOrigin="0.5,1" VerticalAlignment="Bottom">
+                  <UIElement.RenderTransform>
+                    <ScaleTransform ScaleY="0.26" />
+                  </UIElement.RenderTransform>
+                </Border>
+                <Border Name="CompactBar7" Width="2" Height="15" Margin="1,0" Background="#85817A" CornerRadius="1" RenderTransformOrigin="0.5,1" VerticalAlignment="Bottom">
+                  <UIElement.RenderTransform>
+                    <ScaleTransform ScaleY="0.18" />
+                  </UIElement.RenderTransform>
+                </Border>
+              </StackPanel>
+            </Grid>
+          </Button>
+        </Grid>
+        <Grid Name="ExpandedPanel" Opacity="0" Visibility="Collapsed">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <Border Name="StatusPill" Grid.Column="0" Height="26" Margin="1,0,4,0" Background="#1A1B1F" BorderBrush="#303136" BorderThickness="1" CornerRadius="14" Padding="7,0" VerticalAlignment="Center">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+              <StackPanel Name="ExpandedActivityPanel" Orientation="Horizontal" Visibility="Collapsed" Width="31" Height="18" Margin="0,0,6,0" VerticalAlignment="Center">
+                <Border Name="ExpandedBar1" Width="2" Height="15" Margin="1,0" Background="#85817A" CornerRadius="1" RenderTransformOrigin="0.5,1" VerticalAlignment="Bottom">
+                  <UIElement.RenderTransform>
+                    <ScaleTransform ScaleY="0.18" />
+                  </UIElement.RenderTransform>
+                </Border>
+                <Border Name="ExpandedBar2" Width="2" Height="15" Margin="1,0" Background="#A19B92" CornerRadius="1" RenderTransformOrigin="0.5,1" VerticalAlignment="Bottom">
+                  <UIElement.RenderTransform>
+                    <ScaleTransform ScaleY="0.28" />
+                  </UIElement.RenderTransform>
+                </Border>
+                <Border Name="ExpandedBar3" Width="2" Height="15" Margin="1,0" Background="#B8B1A4" CornerRadius="1" RenderTransformOrigin="0.5,1" VerticalAlignment="Bottom">
+                  <UIElement.RenderTransform>
+                    <ScaleTransform ScaleY="0.38" />
+                  </UIElement.RenderTransform>
+                </Border>
+                <Border Name="ExpandedBar4" Width="2" Height="15" Margin="1,0" Background="#D8D3C7" CornerRadius="1" RenderTransformOrigin="0.5,1" VerticalAlignment="Bottom">
+                  <UIElement.RenderTransform>
+                    <ScaleTransform ScaleY="0.48" />
+                  </UIElement.RenderTransform>
+                </Border>
+                <Border Name="ExpandedBar5" Width="2" Height="15" Margin="1,0" Background="#B8B1A4" CornerRadius="1" RenderTransformOrigin="0.5,1" VerticalAlignment="Bottom">
+                  <UIElement.RenderTransform>
+                    <ScaleTransform ScaleY="0.34" />
+                  </UIElement.RenderTransform>
+                </Border>
+                <Border Name="ExpandedBar6" Width="2" Height="15" Margin="1,0" Background="#A19B92" CornerRadius="1" RenderTransformOrigin="0.5,1" VerticalAlignment="Bottom">
+                  <UIElement.RenderTransform>
+                    <ScaleTransform ScaleY="0.26" />
+                  </UIElement.RenderTransform>
+                </Border>
+                <Border Name="ExpandedBar7" Width="2" Height="15" Margin="1,0" Background="#85817A" CornerRadius="1" RenderTransformOrigin="0.5,1" VerticalAlignment="Bottom">
+                  <UIElement.RenderTransform>
+                    <ScaleTransform ScaleY="0.18" />
+                  </UIElement.RenderTransform>
+                </Border>
+              </StackPanel>
+              <TextBlock Name="ModeTextBlock" Text="Dictate" MaxWidth="60" FontSize="11" FontWeight="SemiBold" Foreground="#D8D3C7" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+              <TextBlock Name="RecordingTimerTextBlock" Text=" 00:00" MaxWidth="44" FontSize="10" FontWeight="SemiBold" Foreground="#B8B1A4" Visibility="Collapsed" VerticalAlignment="Center" />
+              <TextBlock Name="ShortcutTextBlock" Text=" Ctrl + Win" MaxWidth="48" FontSize="10" FontWeight="SemiBold" Foreground="#9A9A9A" TextTrimming="CharacterEllipsis" Visibility="Collapsed" VerticalAlignment="Center" />
+            </StackPanel>
+          </Border>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+            <Button Content="" Style="{StaticResource WidgetIconButton}" ToolTip="Open Speak" AutomationProperties.Name="Open Speak" Click="OpenButton_Click" />
+            <Button Name="MicButton" Content="" Style="{StaticResource WidgetIconButton}" ToolTip="Start or stop recording" AutomationProperties.Name="Start recording" Click="ToggleButton_Click" />
+            <Button Content="" Style="{StaticResource WidgetIconButton}" ToolTip="Switch writing mode" AutomationProperties.Name="Switch writing mode" Click="CycleModeButton_Click" />
+            <Button Content="" Style="{StaticResource WidgetIconButton}" ToolTip="Open settings" AutomationProperties.Name="Open settings" Click="SettingsButton_Click" />
+          </StackPanel>
+        </Grid>
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

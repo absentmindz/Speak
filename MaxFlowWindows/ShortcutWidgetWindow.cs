@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Markup;
@@ -15,7 +16,7 @@ using MaxFlowWindows.Core;
 
 namespace MaxFlowWindows;
 
-public class ShortcutWidgetWindow : Window, IComponentConnector
+public partial class ShortcutWidgetWindow : Window, IComponentConnector
 {
 	private const double CompactWidth = 36.0;
 
@@ -53,6 +54,7 @@ public class ShortcutWidgetWindow : Window, IComponentConnector
 
 	private DispatcherTimer? _collapseTimer;
 
+#if LEGACY_BAML_CONNECTOR
 	internal Grid WidgetRoot;
 
 	internal Border WidgetShell;
@@ -108,6 +110,7 @@ public class ShortcutWidgetWindow : Window, IComponentConnector
 	internal Button MicButton;
 
 	private bool _contentLoaded;
+#endif
 
 	public event EventHandler? ToggleRecordingRequested;
 
@@ -139,6 +142,9 @@ public class ShortcutWidgetWindow : Window, IComponentConnector
 		RecordingTimerTextBlock.Text = " " + FormatElapsed(recordingElapsed);
 		ShortcutTextBlock.Text = " " + shortcutText;
 		MicButton.Content = (isRecording ? "\ue71a" : "\ue720");
+		string micAction = isRecording ? "Stop recording" : "Start recording";
+		AutomationProperties.SetName(CompactMicButton, micAction);
+		AutomationProperties.SetName(MicButton, micAction);
 		UpdateWidgetChrome(isRecording);
 		base.ToolTip = (isTranscribing ? "Speak is transcribing" : "Speak dictation shortcut");
 	}
@@ -550,6 +556,7 @@ public class ShortcutWidgetWindow : Window, IComponentConnector
 		return $"{elapsed.Minutes:00}:{elapsed.Seconds:00}";
 	}
 
+#if LEGACY_BAML_CONNECTOR
 	[DebuggerNonUserCode]
 	[GeneratedCode("PresentationBuildTasks", "8.0.27.0")]
 	public void InitializeComponent()
@@ -672,4 +679,5 @@ public class ShortcutWidgetWindow : Window, IComponentConnector
 			break;
 		}
 	}
+#endif
 }

@@ -4,6 +4,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -30,8 +32,10 @@ public sealed class LocalTtsSynthesizer
 
 	private static readonly Dictionary<string, int> WorkerPorts = new(StringComparer.OrdinalIgnoreCase)
 	{
-		["qwen3-customvoice-1.7b"] = 8766,
-		["qwen3-base-1.7b"] = 8767,
+		["qwen3-customvoice-1.7b"] = EndpointSecurity.ResolveLoopbackPort(
+			"SPEAK_QWEN_CUSTOMVOICE_WORKER_PORT", 8766),
+		["qwen3-base-1.7b"] = EndpointSecurity.ResolveLoopbackPort(
+			"SPEAK_QWEN_BASE_WORKER_PORT", 8767),
 	};
 
 	private static readonly Dictionary<string, string> WorkerScripts = new(StringComparer.OrdinalIgnoreCase)
@@ -54,6 +58,12 @@ public sealed class LocalTtsSynthesizer
 	private static TtsWorkerContext? _activeWorker;
 
 	private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web);
+	private readonly Func<Process, bool>? _processRegistrar;
+
+	public LocalTtsSynthesizer(Func<Process, bool>? processRegistrar = null)
+	{
+		_processRegistrar = processRegistrar;
+	}
 
 	private sealed record TtsWorkerContext(
 		string EngineId,
@@ -61,7 +71,8 @@ public sealed class LocalTtsSynthesizer
 		int Port,
 		int KeepAliveMinutes,
 		TaskCompletionSource<bool> ReadySource,
-		CancellationTokenSource ShutdownCts
+		CancellationTokenSource ShutdownCts,
+		string AuthToken
 	);
 
 	public async Task<TtsSynthesisResult> SynthesizeAsync(TtsSynthesisRequest request, CancellationToken cancellationToken)
@@ -205,6 +216,7 @@ public sealed class LocalTtsSynthesizer
 			}
 			TaskCompletionSource<bool> readySource = new TaskCompletionSource<bool>();
 			CancellationTokenSource shutdownCts = new CancellationTokenSource();
+			string authToken = CreateWorkerToken();
 			ProcessStartInfo psi = new ProcessStartInfo
 			{
 				FileName = pythonPath,
@@ -214,11 +226,12 @@ public sealed class LocalTtsSynthesizer
 				RedirectStandardError = true,
 				CreateNoWindow = true
 			};
+			SanitizeChildProcessEnvironment(psi);
 			psi.ArgumentList.Add(scriptPath);
 			psi.ArgumentList.Add("--host");
 			psi.ArgumentList.Add("127.0.0.1");
 			psi.ArgumentList.Add("--port");
-			psi.ArgumentList.Add(port.ToString());
+			psi.ArgumentList.Add(port.ToString(System.Globalization.CultureInfo.InvariantCulture));
 			psi.ArgumentList.Add("--startup-timeout-seconds");
 			psi.ArgumentList.Add("600");
 			psi.ArgumentList.Add("--idle-minutes");
@@ -235,6 +248,7 @@ public sealed class LocalTtsSynthesizer
 			psi.ArgumentList.Add("auto");
 			psi.Environment["PYTHONUTF8"] = "1";
 			psi.Environment["PYTHONIOENCODING"] = "utf-8";
+			psi.Environment["SPEAK_WORKER_TOKEN"] = authToken;
 			Process process = new Process
 			{
 				StartInfo = psi,
@@ -276,9 +290,13 @@ public sealed class LocalTtsSynthesizer
 				shutdownCts.Dispose();
 				return false;
 			}
+			if (_processRegistrar != null && !_processRegistrar(process))
+			{
+				AppLog.Warn("Warm TTS worker could not be assigned to the Speak process job.");
+			}
 			process.BeginOutputReadLine();
 			process.BeginErrorReadLine();
-			TtsWorkerContext context = new TtsWorkerContext(engineId, process, port, keepAliveMinutes, readySource, shutdownCts);
+			TtsWorkerContext context = new TtsWorkerContext(engineId, process, port, keepAliveMinutes, readySource, shutdownCts, authToken);
 			_activeWorker = context;
 			Task<bool> readyTask = readySource.Task;
 			Task timeoutTask = Task.Delay(TimeSpan.FromMinutes(10), cancellationToken);
@@ -322,8 +340,12 @@ public sealed class LocalTtsSynthesizer
 			{
 				Timeout = TimeSpan.FromSeconds(3)
 			};
-			using StringContent content = new StringContent("{}", Encoding.UTF8, "application/json");
-			await client.PostAsync($"http://127.0.0.1:{worker.Port}/shutdown", content);
+			using HttpResponseMessage response = await SendWorkerRequestAsync(
+				client,
+				$"http://127.0.0.1:{worker.Port}/shutdown",
+				"{}",
+				worker.AuthToken,
+				CancellationToken.None);
 		}
 		catch
 		{
@@ -374,8 +396,12 @@ public sealed class LocalTtsSynthesizer
 			payload["voicePromptPath"] = request.VoicePromptPath;
 		}
 		string json = JsonSerializer.Serialize(payload, _jsonOptions);
-		using StringContent content = new StringContent(json, Encoding.UTF8, "application/json");
-		using HttpResponseMessage response = await _workerHttp.PostAsync($"http://127.0.0.1:{worker.Port}/say", content, cancellationToken);
+		using HttpResponseMessage response = await SendWorkerRequestAsync(
+			_workerHttp,
+			$"http://127.0.0.1:{worker.Port}/say",
+			json,
+			worker.AuthToken,
+			cancellationToken);
 		response.EnsureSuccessStatusCode();
 		string resultJson = await response.Content.ReadAsStringAsync(cancellationToken);
 		JsonElement result = JsonSerializer.Deserialize<JsonElement>(resultJson, _jsonOptions);
@@ -399,8 +425,12 @@ public sealed class LocalTtsSynthesizer
 			["ref_text"] = ""
 		};
 		string json = JsonSerializer.Serialize(payload, _jsonOptions);
-		using StringContent content = new StringContent(json, Encoding.UTF8, "application/json");
-		using HttpResponseMessage response = await _workerHttp.PostAsync($"http://127.0.0.1:{worker.Port}/clone", content, cancellationToken);
+		using HttpResponseMessage response = await SendWorkerRequestAsync(
+			_workerHttp,
+			$"http://127.0.0.1:{worker.Port}/clone",
+			json,
+			worker.AuthToken,
+			cancellationToken);
 		response.EnsureSuccessStatusCode();
 		string resultJson = await response.Content.ReadAsStringAsync(cancellationToken);
 		JsonElement result = JsonSerializer.Deserialize<JsonElement>(resultJson, _jsonOptions);
@@ -623,6 +653,7 @@ public sealed class LocalTtsSynthesizer
 
 	private static async Task RunProcessAsync(ProcessStartInfo startInfo, TimeSpan timeout, CancellationToken cancellationToken)
 	{
+		SanitizeChildProcessEnvironment(startInfo);
 		using Process process = new Process
 		{
 			StartInfo = startInfo,
@@ -662,6 +693,32 @@ public sealed class LocalTtsSynthesizer
 		}
 	}
 
+	public static void SanitizeChildProcessEnvironment(ProcessStartInfo startInfo)
+	{
+		ArgumentNullException.ThrowIfNull(startInfo);
+		foreach (string name in startInfo.Environment.Keys.ToArray())
+		{
+			if (IsSensitiveEnvironmentVariableName(name))
+			{
+				startInfo.Environment.Remove(name);
+			}
+		}
+	}
+
+	private static bool IsSensitiveEnvironmentVariableName(string name)
+	{
+		string normalized = name.ToUpperInvariant();
+		return normalized.Contains("KEY", StringComparison.Ordinal)
+			|| normalized.Contains("TOKEN", StringComparison.Ordinal)
+			|| normalized.Contains("SECRET", StringComparison.Ordinal)
+			|| normalized.Contains("PASSWORD", StringComparison.Ordinal)
+			|| normalized.Contains("PASSWD", StringComparison.Ordinal)
+			|| normalized.Contains("CREDENTIAL", StringComparison.Ordinal)
+			|| normalized.Contains("AUTH", StringComparison.Ordinal)
+			|| normalized.Contains("COOKIE", StringComparison.Ordinal)
+			|| normalized.Contains("SESSION", StringComparison.Ordinal);
+	}
+
 	private static void SetChatterboxEnvironment(ProcessStartInfo startInfo)
 	{
 		var modelsRoot = _config.Paths.ModelsRoot;
@@ -671,7 +728,7 @@ public sealed class LocalTtsSynthesizer
 		startInfo.Environment["XDG_CACHE_HOME"] = Path.Combine(modelsRoot, "chatter-tts", "xdg");
 		startInfo.Environment["HF_HUB_DISABLE_XET"] = "1";
 		startInfo.Environment["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1";
-		PrependPath(startInfo, @"C:\ffmpeg\bin");
+		PrependFfmpegPath(startInfo);
 	}
 
 	private static void SetQwenEnvironment(ProcessStartInfo startInfo)
@@ -684,8 +741,8 @@ public sealed class LocalTtsSynthesizer
 		startInfo.Environment["TORCH_HOME"] = Path.Combine(cacheRoot, "torch");
 		startInfo.Environment["PYTHONPATH"] = Path.Combine(toolsRoot, "Qwen3-TTS") + ";" + (startInfo.Environment.TryGetValue("PYTHONPATH", out string existing) ? existing : "");
 		PrependPath(startInfo, Path.Combine(toolsRoot, "ComfyUI-venv", "Scripts"));
-		PrependPath(startInfo, @"C:\Program Files (x86)\sox-14-4-2");
-		PrependPath(startInfo, @"C:\ffmpeg\bin");
+		PrependSoxPath(startInfo);
+		PrependFfmpegPath(startInfo);
 	}
 
 	private static void SetTortoiseEnvironment(ProcessStartInfo startInfo)
@@ -698,7 +755,50 @@ public sealed class LocalTtsSynthesizer
 		startInfo.Environment["XDG_CACHE_HOME"] = Path.Combine(cacheRoot, "tortoise-tts");
 		startInfo.Environment["PYTHONUTF8"] = "1";
 		startInfo.Environment["PYTHONIOENCODING"] = "utf-8";
-		PrependPath(startInfo, @"C:\ffmpeg\bin");
+		PrependFfmpegPath(startInfo);
+	}
+
+	private static void PrependFfmpegPath(ProcessStartInfo startInfo)
+	{
+		PrependConfiguredOrSystemToolPath(startInfo, "SPEAK_FFMPEG_BIN", "ffmpeg", "bin");
+	}
+
+	private static void PrependSoxPath(ProcessStartInfo startInfo)
+	{
+		string configured = Environment.GetEnvironmentVariable("SPEAK_SOX_BIN") ?? "";
+		if (!string.IsNullOrWhiteSpace(configured))
+		{
+			PrependPath(startInfo, PortablePathResolver.ExpandPath(configured));
+		}
+
+		string programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+		if (!string.IsNullOrWhiteSpace(programFilesX86))
+		{
+			PrependPath(startInfo, Path.Combine(programFilesX86, "sox-14-4-2"));
+		}
+	}
+
+	private static void PrependConfiguredOrSystemToolPath(
+		ProcessStartInfo startInfo,
+		string environmentVariable,
+		params string[] relativeSegments)
+	{
+		string configured = Environment.GetEnvironmentVariable(environmentVariable) ?? "";
+		if (!string.IsNullOrWhiteSpace(configured))
+		{
+			PrependPath(startInfo, PortablePathResolver.ExpandPath(configured));
+		}
+
+		string candidate = Path.GetPathRoot(Environment.SystemDirectory) ?? "";
+		if (string.IsNullOrWhiteSpace(candidate))
+		{
+			return;
+		}
+		foreach (string segment in relativeSegments)
+		{
+			candidate = Path.Combine(candidate, segment);
+		}
+		PrependPath(startInfo, candidate);
 	}
 
 	private static void PrependPath(ProcessStartInfo startInfo, string path)
@@ -766,7 +866,28 @@ public sealed class LocalTtsSynthesizer
 
 	private static string Stamp()
 	{
-		return DateTimeOffset.Now.ToString("yyyyMMdd_HHmmss");
+		return DateTimeOffset.Now.ToString("yyyyMMdd_HHmmss_fff", System.Globalization.CultureInfo.InvariantCulture) + "-" + Guid.NewGuid().ToString("N")[..8];
+	}
+
+	private static string CreateWorkerToken()
+	{
+		return Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
+			.TrimEnd('=')
+			.Replace('+', '-')
+			.Replace('/', '_');
+	}
+
+	private static async Task<HttpResponseMessage> SendWorkerRequestAsync(
+		HttpClient client,
+		string uri,
+		string json,
+		string authToken,
+		CancellationToken cancellationToken)
+	{
+		using var request = new HttpRequestMessage(HttpMethod.Post, uri);
+		request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authToken);
+		request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+		return await client.SendAsync(request, cancellationToken);
 	}
 
 	private static string StableFilePart(string value)

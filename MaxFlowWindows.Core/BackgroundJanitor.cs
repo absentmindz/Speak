@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -8,16 +7,21 @@ namespace MaxFlowWindows.Core;
 
 public sealed class BackgroundJanitor : IDisposable
 {
-    private readonly string _dataRoot;
-    private readonly int _recordingRetentionDays;
+	private readonly string _dataRoot;
+	private int _recordingRetentionDays;
     private CancellationTokenSource? _cts;
     private Task? _task;
 
-    public BackgroundJanitor(string dataRoot, int recordingRetentionDays)
-    {
-        _dataRoot = dataRoot;
-        _recordingRetentionDays = Math.Max(1, recordingRetentionDays);
-    }
+	public BackgroundJanitor(string dataRoot, int recordingRetentionDays)
+	{
+		_dataRoot = dataRoot;
+		UpdateRecordingRetentionDays(recordingRetentionDays);
+	}
+
+	public void UpdateRecordingRetentionDays(int recordingRetentionDays)
+	{
+		Volatile.Write(ref _recordingRetentionDays, Math.Max(0, recordingRetentionDays));
+	}
 
     public void Start()
     {
@@ -71,12 +75,10 @@ public sealed class BackgroundJanitor : IDisposable
 
     private void Cleanup()
     {
-        try
-        {
-            CleanOldRecordings();
-            CleanTempFiles("tts", "outputs");
-            CleanTempFiles("tts", "clone-outputs");
-            CleanOldLogs();
+		try
+		{
+			CleanOldRecordings();
+			CleanOldLogs();
         }
         catch (Exception ex)
         {
@@ -86,49 +88,22 @@ public sealed class BackgroundJanitor : IDisposable
 
     private void CleanOldRecordings()
     {
+        // Zero is the documented "Keep forever" value.
+		int recordingRetentionDays = Volatile.Read(ref _recordingRetentionDays);
+		if (recordingRetentionDays == 0)
+			return;
+
         string recordingsDir = Path.Combine(_dataRoot, "recordings");
         if (!Directory.Exists(recordingsDir))
             return;
 
-        DateTime cutoff = DateTime.UtcNow.AddDays(-_recordingRetentionDays);
+		DateTime cutoff = DateTime.UtcNow.AddDays(-recordingRetentionDays);
         foreach (string file in Directory.EnumerateFiles(recordingsDir, "*.wav", SearchOption.AllDirectories))
         {
             try
             {
                 if (File.GetLastWriteTimeUtc(file) < cutoff)
                     File.Delete(file);
-            }
-            catch
-            {
-            }
-        }
-    }
-
-    private void CleanTempFiles(params string[] subPath)
-    {
-        string dir = Path.Combine(_dataRoot, Path.Combine(subPath));
-        if (!Directory.Exists(dir))
-            return;
-
-        DateTime cutoff = DateTime.UtcNow.AddDays(-7);
-        foreach (string file in Directory.EnumerateFiles(dir, "*.wav", SearchOption.TopDirectoryOnly))
-        {
-            try
-            {
-                if (File.GetLastWriteTimeUtc(file) < cutoff)
-                    File.Delete(file);
-            }
-            catch
-            {
-            }
-        }
-
-        foreach (string sub in Directory.EnumerateDirectories(dir))
-        {
-            try
-            {
-                if (Directory.GetLastWriteTimeUtc(sub) < cutoff && !Directory.EnumerateFileSystemEntries(sub).Any())
-                    Directory.Delete(sub);
             }
             catch
             {

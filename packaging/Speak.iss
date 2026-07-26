@@ -1,34 +1,42 @@
-; Speak complete application installer. Model weights are distributed separately.
+; Speak application installer. Local AI runtimes and model weights are separate.
 
 #define MyAppName "Speak"
-#define MyAppVersion "0.5.0"
-#define MyAppPublisher "Hamza"
+#ifndef AppVersion
+  #define AppVersion "0.5.1"
+#endif
+#define MyAppVersion AppVersion
+#define MyAppPublisher "Speak contributors"
 #define MyAppExeName "Speak.exe"
 
 [Setup]
 AppId={{D8A12B4C-1234-5678-ABCD-123456789ABC}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
+AppVerName={#MyAppName} {#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-DefaultDirName={autopf}\{#MyAppName}
+AppPublisherURL=https://github.com/absentmindz/Speak
+AppSupportURL=https://github.com/absentmindz/Speak/issues
+AppUpdatesURL=https://github.com/absentmindz/Speak/releases
+DefaultDirName={localappdata}\Programs\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=artifacts
-OutputBaseFilename=Speak-{#MyAppVersion}-Complete-Setup
-Compression=lzma2/normal
+OutputBaseFilename=Speak-{#MyAppVersion}-Setup
+Compression=lzma2/max
 SolidCompression=yes
-DiskSpanning=no
 WizardStyle=modern dark
-PrivilegesRequired=admin
+PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 SetupIconFile=..\app.ico
+LicenseFile=..\LICENSE
 UninstallDisplayIcon={app}\{#MyAppExeName}
 CloseApplications=yes
 CloseApplicationsFilter=Speak.exe
 RestartApplications=no
 ChangesEnvironment=no
 MinVersion=10.0.17763
+SetupLogging=yes
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -39,7 +47,6 @@ Name: "autostart"; Description: "Start Speak when I sign in"; GroupDescription: 
 
 [Files]
 Source: "stage\App\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "stage\Prerequisites\vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
@@ -47,7 +54,6 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDi
 Name: "{autostartup}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Tasks: autostart
 
 [Run]
-Filename: "{tmp}\vc_redist.x64.exe"; Parameters: "/install /quiet /norestart"; StatusMsg: "Installing the Microsoft Visual C++ runtime..."; Flags: waituntilterminated
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent
 
 [Code]
@@ -60,15 +66,17 @@ var
 begin
   ModelsPage := CreateInputDirPage(wpSelectDir,
     'Local AI models',
-    'Choose where Speak should look for local model weights.',
-    'The optional offline model pack can install into this folder. Existing compatible models are detected there after Speak starts.',
+    'Choose where Speak should look for optional local model weights.',
+    'You may install the separate offline model pack into this folder. Cloud features do not require it.',
     False, '');
   ModelsPage.Add('Models folder:');
 
-  if RegQueryStringValue(HKLM64, 'SOFTWARE\Speak', 'ModelsRoot', ExistingModelsRoot) then
+  if RegQueryStringValue(HKCU, 'SOFTWARE\Speak', 'ModelsRoot', ExistingModelsRoot) then
+    ModelsPage.Values[0] := ExistingModelsRoot
+  else if RegQueryStringValue(HKLM64, 'SOFTWARE\Speak', 'ModelsRoot', ExistingModelsRoot) then
     ModelsPage.Values[0] := ExistingModelsRoot
   else
-    ModelsPage.Values[0] := ExpandConstant('{commonappdata}\Speak\Models');
+    ModelsPage.Values[0] := ExpandConstant('{localappdata}\Speak\Models');
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
@@ -91,6 +99,6 @@ begin
   if CurStep = ssPostInstall then
   begin
     ForceDirectories(ModelsPage.Values[0]);
-    RegWriteStringValue(HKLM64, 'SOFTWARE\Speak', 'ModelsRoot', ModelsPage.Values[0]);
+    RegWriteStringValue(HKCU, 'SOFTWARE\Speak', 'ModelsRoot', ModelsPage.Values[0]);
   end;
 end;

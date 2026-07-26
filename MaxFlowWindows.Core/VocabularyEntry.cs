@@ -55,23 +55,23 @@ public sealed class VocabularyEntry
 		},
 		new VocabularyEntry
 		{
-			Spoken = "max flow",
-			Written = "MaxFlow"
+			Spoken = "read me",
+			Written = "README"
 		},
 		new VocabularyEntry
 		{
-			Spoken = "open claw",
-			Written = "OpenClaw"
+			Spoken = "git hub",
+			Written = "GitHub"
 		},
 		new VocabularyEntry
 		{
-			Spoken = "super whisper",
-			Written = "SuperWhisper"
+			Spoken = "type script",
+			Written = "TypeScript"
 		},
 		new VocabularyEntry
 		{
-			Spoken = "whisper flow",
-			Written = "Wispr Flow"
+			Spoken = "java script",
+			Written = "JavaScript"
 		},
 		new VocabularyEntry
 		{
@@ -80,48 +80,48 @@ public sealed class VocabularyEntry
 		},
 		new VocabularyEntry
 		{
-			Spoken = "groq",
-			Written = "Groq"
+			Spoken = "power shell",
+			Written = "PowerShell"
 		},
 		new VocabularyEntry
 		{
-			Spoken = "test flight",
-			Written = "TestFlight"
+			Spoken = "postgre sequel",
+			Written = "PostgreSQL"
 		},
 		new VocabularyEntry
 		{
-			Spoken = "iphone",
-			Written = "iPhone"
+			Spoken = "api",
+			Written = "API"
 		},
 		new VocabularyEntry
 		{
-			Spoken = "i o s",
-			Written = "iOS"
+			Spoken = "json",
+			Written = "JSON"
 		},
 		new VocabularyEntry
 		{
-			Spoken = "x code",
-			Written = "Xcode"
+			Spoken = "sql",
+			Written = "SQL"
 		},
 		new VocabularyEntry
 		{
-			Spoken = "x code gen",
-			Written = "XcodeGen"
+			Spoken = "dot net",
+			Written = ".NET"
 		},
 		new VocabularyEntry
 		{
-			Spoken = "whisper kit",
-			Written = "WhisperKit"
+			Spoken = "whisper",
+			Written = "Whisper"
 		},
 		new VocabularyEntry
 		{
-			Spoken = "x a u u s d",
-			Written = "XAUUSD"
+			Spoken = "qwen",
+			Written = "Qwen"
 		},
 		new VocabularyEntry
 		{
-			Spoken = "m t five",
-			Written = "MT5"
+			Spoken = "cuda",
+			Written = "CUDA"
 		},
 		new VocabularyEntry
 		{

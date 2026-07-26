@@ -9,7 +9,9 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -34,7 +36,7 @@ using NAudio.Wave;
 
 namespace MaxFlowWindows;
 
-public class MainWindow : Window, IComponentConnector
+public partial class MainWindow : Window, IComponentConnector
 {
 	private delegate nint LowLevelKeyboardProc(int nCode, nint wParam, nint lParam);
 
@@ -143,12 +145,14 @@ public class MainWindow : Window, IComponentConnector
 
 	private readonly LlmModelDiscovery _llmModelDiscovery = new LlmModelDiscovery();
 
-	private readonly LocalTtsSynthesizer _ttsSynthesizer = new LocalTtsSynthesizer();
+	private readonly LocalTtsSynthesizer _ttsSynthesizer;
 
 	private readonly ClipboardHistory _clipboardHistory = new ClipboardHistory(10);
-	private readonly Lazy<RestApiServer> _restApiServer = new Lazy<RestApiServer>(() => new RestApiServer(19876));
+	private RestApiServer? _restApiServer;
 	private BackgroundJanitor? _janitor;
 	private ProcessJob? _processJob;
+	private readonly string _whisperWorkerToken = CreateWorkerToken();
+	private readonly DateTimeOffset _startedAt = DateTimeOffset.UtcNow;
 
 	private readonly ObservableCollection<VocabularyEntry> _vocabulary;
 
@@ -196,6 +200,12 @@ public class MainWindow : Window, IComponentConnector
 	private readonly SemaphoreSlim _historySaveGate = new SemaphoreSlim(1, 1);
 
 	private readonly SemaphoreSlim _vocabularySaveGate = new SemaphoreSlim(1, 1);
+
+	private readonly SemaphoreSlim _historyMutationGate = new SemaphoreSlim(1, 1);
+
+	private readonly object _persistenceTaskSync = new object();
+	private Task _historySaveTask = Task.CompletedTask;
+	private Task _vocabularySaveTask = Task.CompletedTask;
 
 	private readonly MediaPlayer _ttsPreviewPlayer = new MediaPlayer();
 
@@ -359,7 +369,14 @@ public class MainWindow : Window, IComponentConnector
 
 	private int _vocabularySaveVersion;
 
-	private const string WhisperServerBaseUrl = "http://127.0.0.1:39731";
+	private bool _shutdownStarted;
+
+	private bool _shutdownCompleted;
+
+	private static readonly int WhisperServerPort = EndpointSecurity.ResolveLoopbackPort(
+		"SPEAK_WHISPER_SERVER_PORT", 39731);
+
+	private static readonly string WhisperServerBaseUrl = $"http://127.0.0.1:{WhisperServerPort}";
 
 	private static readonly TimeSpan ModelDiscoveryCacheDuration = TimeSpan.FromMinutes(5.0);
 
@@ -407,6 +424,7 @@ public class MainWindow : Window, IComponentConnector
 
 	private const int MaxFocusedEditTextLength = 12000;
 
+#if LEGACY_BAML_CONNECTOR
 	internal System.Windows.Controls.Button DictateTabButton;
 
 	internal System.Windows.Controls.Button HistoryTabButton;
@@ -614,6 +632,7 @@ public class MainWindow : Window, IComponentConnector
 	internal System.Windows.Controls.Button StopLoadedModelButton;
 
 	private bool _contentLoaded;
+#endif
 
 	private TimeSpan RecordingElapsed
 	{
@@ -680,7 +699,7 @@ public class MainWindow : Window, IComponentConnector
 	[DllImport("user32.dll", SetLastError = true)]
 	private static extern uint SendInput(uint nInputs, Input[] pInputs, int cbSize);
 
-	[DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+	[DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
 	private static extern nint GetModuleHandle(string? lpModuleName);
 
 	[DllImport("kernel32.dll")]
@@ -688,11 +707,17 @@ public class MainWindow : Window, IComponentConnector
 
 	public MainWindow()
 	{
+		_ttsSynthesizer = new LocalTtsSynthesizer(
+			process => _processJob?.AddProcess(process) == true);
 		InitializeComponent();
 		_settings = _store.LoadSettings();
 		_transcriptionModels = TranscriptionModelOption.LoadAvailableLocalModels();
-		_settings = NormalizeSettings(_settings, _transcriptionModels);
+		_settings = NormalizeSettings(_settings, _transcriptionModels, out bool credentialMigrated);
 		_store.SaveSettings(_settings);
+		if (credentialMigrated)
+		{
+			_store.PurgeSettingsRecoveryCopies();
+		}
 		_shortcutGesture = ShortcutGesture.Parse(_settings.DictationShortcut);
 		_vocabulary = new ObservableCollection<VocabularyEntry>(_store.LoadVocabulary());
 		_history = new ObservableCollection<TranscriptCard>(from card in _store.LoadHistory()
@@ -773,55 +798,120 @@ public class MainWindow : Window, IComponentConnector
 		UpdateShortcutWidgetState();
 	}
 
+	protected override void OnClosing(CancelEventArgs e)
+	{
+		if (!_shutdownCompleted)
+		{
+			e.Cancel = true;
+			if (!_shutdownStarted)
+			{
+				_shutdownStarted = true;
+				IsEnabled = false;
+				_ = ShutdownThenCloseAsync();
+			}
+			return;
+		}
+		base.OnClosing(e);
+	}
+
 	protected override void OnClosed(EventArgs e)
 	{
-		UnregisterNativeHotkey();
-		UninstallKeyboardShortcutHook();
-		_hotkeySource?.RemoveHook(WindowMessageHook);
-		_hotkeySource = null;
-		_trayIcon?.Dispose();
-		_trayMenu?.Dispose();
-		_trayIcon = null;
-		_trayMenu = null;
-		_shortcutWidget?.Close();
-		_shortcutWidget = null;
-		_learningToast?.Close();
-		_learningToast = null;
-		_externalEditLearningCts?.Cancel();
-		_externalEditLearningCts?.Dispose();
-		_externalEditLearningCts = null;
-		_ttsGenerationCts?.Cancel();
-		_ttsGenerationCts?.Dispose();
-		_ttsGenerationCts = null;
-		_ttsWarmCts?.Cancel();
-		_ttsWarmCts?.Dispose();
-		_ttsWarmCts = null;
-		_ttsSynthesizer.StopWarmEngineAsync().GetAwaiter().GetResult();
-		_janitor?.Dispose();
-		_janitor = null;
-		_restApiServer.Value?.Stop();
-		_processJob?.Dispose();
-		_processJob = null;
-		_historySearchRefreshTimer.Stop();
-		FlushLocalDataBeforeClose();
-		_recordingTimer.Stop();
-		DisposeRecording();
-		StopWhisperServerForShutdown();
-		_historySaveGate.Dispose();
-		_vocabularySaveGate.Dispose();
-		_whisperClient.Dispose();
-		_cloudSpeechTranscriber.Dispose();
-		_llmPolisher.Dispose();
-		_llmModelDiscovery.Dispose();
 		base.OnClosed(e);
 	}
 
-	private void FlushLocalDataBeforeClose()
+	private async Task ShutdownThenCloseAsync()
 	{
 		try
 		{
-			_store.SaveHistory(_history);
-			_store.SaveVocabulary(_vocabulary);
+			UnregisterNativeHotkey();
+			UninstallKeyboardShortcutHook();
+			_hotkeySource?.RemoveHook(WindowMessageHook);
+			_hotkeySource = null;
+			_trayIcon?.Dispose();
+			_trayMenu?.Dispose();
+			_trayIcon = null;
+			_trayMenu = null;
+			_shortcutWidget?.Close();
+			_shortcutWidget = null;
+			_learningToast?.Close();
+			_learningToast = null;
+			_externalEditLearningCts?.Cancel();
+			_externalEditLearningCts?.Dispose();
+			_externalEditLearningCts = null;
+			_ttsGenerationCts?.Cancel();
+			_ttsGenerationCts?.Dispose();
+			_ttsGenerationCts = null;
+			_ttsWarmCts?.Cancel();
+			_ttsWarmCts?.Dispose();
+			_ttsWarmCts = null;
+			_historySearchRefreshTimer.Stop();
+			_recordingTimer.Stop();
+			DisposeRecording();
+
+			_janitor?.Dispose();
+			_janitor = null;
+			if (_restApiServer != null)
+			{
+				try
+				{
+					await _restApiServer.StopAsync();
+				}
+				catch (Exception exception)
+				{
+					AppLog.Warn("REST API shutdown failed.", exception);
+				}
+			}
+
+			try
+			{
+				await _ttsSynthesizer.StopWarmEngineAsync();
+			}
+			catch (Exception exception)
+			{
+				AppLog.Warn("TTS worker shutdown failed.", exception);
+			}
+			try
+			{
+				await StopWhisperServerForShutdownAsync();
+			}
+			catch (Exception exception)
+			{
+				AppLog.Warn("Whisper worker shutdown failed.", exception);
+				TerminateOwnedWhisperServerProcessTree();
+			}
+			await FlushLocalDataBeforeCloseAsync();
+		}
+		catch (Exception exception)
+		{
+			AppLog.Warn("Shutdown cleanup failed.", exception);
+		}
+		finally
+		{
+			_restApiServer?.Dispose();
+			_restApiServer = null;
+			// The job handle is closed only after child workers have stopped and
+			// local state is durable. Speak itself is never assigned to the job.
+			_processJob?.Dispose();
+			_processJob = null;
+			_historyMutationGate.Dispose();
+			_historySaveGate.Dispose();
+			_vocabularySaveGate.Dispose();
+			_whisperClient.Dispose();
+			_cloudSpeechTranscriber.Dispose();
+			_llmPolisher.Dispose();
+			_llmModelDiscovery.Dispose();
+			_shutdownCompleted = true;
+			Close();
+		}
+	}
+
+	private async Task FlushLocalDataBeforeCloseAsync()
+	{
+		try
+		{
+			Task historyTask = QueueHistorySave(_history.ToList(), Interlocked.Increment(ref _historySaveVersion));
+			Task vocabularyTask = QueueVocabularySave(_vocabulary.ToList(), Interlocked.Increment(ref _vocabularySaveVersion));
+			await Task.WhenAll(historyTask, vocabularyTask);
 		}
 		catch (Exception exception)
 		{
@@ -865,7 +955,6 @@ public class MainWindow : Window, IComponentConnector
 		UpdateShortcutWidgetState();
 		EnsureTrayIcon();
 		ApplyStartupRegistration();
-		ArchiveOldRecordings();
 		ScheduleProviderRefresh();
 		ApplyPremiumRuntimePolish();
 		InitializeBackgroundInfrastructure();
@@ -915,10 +1004,17 @@ public class MainWindow : Window, IComponentConnector
 			_janitor = new BackgroundJanitor(SpeakDataPaths.ResolveDataRoot(), _settings.RecordingRetentionDays);
 			_janitor.Start();
 
-			RegisterRestApiRoutes();
-			if (_restApiServer.Value != null && !_restApiServer.Value.IsRunning)
+			if (TryGetRestApiConfiguration(out string restApiToken, out IReadOnlyList<string> allowedOrigins))
 			{
-				_restApiServer.Value.Start();
+				int restApiPort = EndpointSecurity.ResolveLoopbackPort("SPEAK_REST_API_PORT", 19876);
+				_restApiServer = new RestApiServer(restApiPort, restApiToken, allowedOrigins);
+				RegisterRestApiRoutes();
+				_restApiServer.Start();
+				AppLog.Info($"Authenticated REST API enabled on loopback port {restApiPort}.");
+			}
+			else
+			{
+				AppLog.Info("REST API disabled. Set SPEAK_ENABLE_REST_API=1 and a strong SPEAK_REST_API_TOKEN to opt in.");
 			}
 		}
 		catch (Exception ex)
@@ -927,19 +1023,38 @@ public class MainWindow : Window, IComponentConnector
 		}
 	}
 
+	private void ReconfigureRecordingJanitor(int previousRetentionDays)
+	{
+		if (_janitor == null || previousRetentionDays == _settings.RecordingRetentionDays)
+		{
+			return;
+		}
+
+		_janitor.Dispose();
+		_janitor = new BackgroundJanitor(
+			SpeakDataPaths.ResolveDataRoot(),
+			_settings.RecordingRetentionDays);
+		_janitor.Start();
+		AppLog.Info(
+			_settings.RecordingRetentionDays == 0
+				? "Recording retention changed to keep recordings forever."
+				: $"Recording retention changed to delete recordings older than {_settings.RecordingRetentionDays} days.");
+	}
+
 	private void RegisterRestApiRoutes()
 	{
-		RestApiServer api = _restApiServer.Value;
+		RestApiServer api = _restApiServer ?? throw new InvalidOperationException("REST API has not been configured.");
 
-		api.RegisterRoute("GET", "/health", BuildHealthReport);
-		api.RegisterRoute("GET", "/status", BuildHealthReport);
+		api.RegisterRoute("GET", "/health", _ => BuildHealthReportAsync());
+		api.RegisterRoute("GET", "/status", _ => BuildHealthReportAsync());
 
-		api.RegisterRoute("GET", "/history", request =>
+		api.RegisterRoute("GET", "/history", async request =>
 		{
 			int skip = request.Query.GetValueOrDefault("skip") is string s && int.TryParse(s, out int si) ? si : 0;
 			int take = request.Query.GetValueOrDefault("take") is string t && int.TryParse(t, out int ti) ? ti : 50;
+			skip = Math.Max(0, skip);
 			take = Math.Clamp(take, 1, 200);
-			return UiGet(() =>
+			return await UiGetAsync<object?>(() =>
 			{
 				var items = _history.Skip(skip).Take(take).Select(c => new
 				{
@@ -958,11 +1073,11 @@ public class MainWindow : Window, IComponentConnector
 			});
 		});
 
-		api.RegisterRoute("GET", "/history/{id}", request =>
+		api.RegisterRoute("GET", "/history/{id}", async request =>
 		{
 			if (!Guid.TryParse(request.PathParams.GetValueOrDefault("id"), out Guid guid))
 				return new { error = "Invalid id format", statusCode = 400 };
-			return UiGet(() =>
+			return await UiGetAsync<object?>(() =>
 			{
 				TranscriptCard? card = _history.FirstOrDefault(c => c.Id == guid);
 				if (card == null)
@@ -983,9 +1098,9 @@ public class MainWindow : Window, IComponentConnector
 			});
 		});
 
-		api.RegisterRoute("POST", "/dictate/start", request =>
+		api.RegisterRoute("POST", "/dictate/start", async _ =>
 		{
-			return UiGet(() =>
+			return await UiGetAsync<object?>(() =>
 			{
 				if (_isTranscribing)
 					return (object)new { error = "Currently transcribing", statusCode = 409 };
@@ -996,31 +1111,31 @@ public class MainWindow : Window, IComponentConnector
 			});
 		});
 
-		api.RegisterRoute("POST", "/dictate/stop", request =>
+		api.RegisterRoute("POST", "/dictate/stop", async _ =>
 		{
-			return UiGet(() =>
+			return await UiGetAsync<object?>(async () =>
 			{
 				if (!_isRecording && !_isTranscribing)
 					return (object)new { error = "Not recording", statusCode = 409 };
 				if (_isTranscribing)
 					return (object)new { error = "Already transcribing", statusCode = 409 };
-				StopRecordingAndTranscribeAsync().GetAwaiter().GetResult();
+				await StopRecordingAndTranscribeAsync();
 				return (object)new { status = "transcribed" };
 			});
 		});
 
-		api.RegisterRoute("POST", "/dictate/toggle", request =>
+		api.RegisterRoute("POST", "/dictate/toggle", async _ =>
 		{
-			return UiGet(() =>
+			return await UiGetAsync<object?>(async () =>
 			{
-				ToggleRecordingFromShortcutAsync().GetAwaiter().GetResult();
+				await ToggleRecordingFromShortcutAsync();
 				return (object)new { status = _isRecording ? "recording" : _isTranscribing ? "transcribing" : "idle" };
 			});
 		});
 
-		api.RegisterRoute("GET", "/modes", request =>
+		api.RegisterRoute("GET", "/modes", async _ =>
 		{
-			return UiGet(() =>
+			return await UiGetAsync<object?>(() =>
 			{
 				var modes = DictationMode.Presets.Select(m => new
 				{
@@ -1033,7 +1148,7 @@ public class MainWindow : Window, IComponentConnector
 			});
 		});
 
-		api.RegisterRoute("POST", "/modes/switch", request =>
+		api.RegisterRoute("POST", "/modes/switch", async request =>
 		{
 			string? modeId = null;
 			try
@@ -1052,11 +1167,14 @@ public class MainWindow : Window, IComponentConnector
 			if (mode == null)
 				return new { error = $"Mode '{modeId}' not found", statusCode = 404 };
 
-			Dispatcher.Invoke(() => SelectMode(mode));
-			return new { status = "switched", id = mode.Id, name = mode.Name };
+			return await UiGetAsync<object?>(() =>
+			{
+				SelectMode(mode);
+				return new { status = "switched", id = mode.Id, name = mode.Name };
+			});
 		});
 
-		api.RegisterRoute("POST", "/paste", request =>
+		api.RegisterRoute("POST", "/paste", async request =>
 		{
 			string text = "";
 			try
@@ -1067,21 +1185,21 @@ public class MainWindow : Window, IComponentConnector
 			}
 			catch { }
 
-			return UiGet(() =>
+			return await UiGetAsync<object?>(async () =>
 			{
 				string textToPaste = string.IsNullOrWhiteSpace(text)
 					? RawTranscriptTextBox.Text.Trim()
 					: text;
 				if (string.IsNullOrWhiteSpace(textToPaste))
 					return (object)new { error = "No text to paste", statusCode = 400 };
-				DeliverTranscriptionOutputAsync(textToPaste).GetAwaiter().GetResult();
-				return (object)new { status = "pasted", text = textToPaste };
+				await DeliverTranscriptionOutputAsync(textToPaste);
+				return (object)new { status = "delivered" };
 			});
 		});
 
-		api.RegisterRoute("GET", "/settings", _ =>
+		api.RegisterRoute("GET", "/settings", async _ =>
 		{
-			return new
+			return await UiGetAsync<object?>(() => new
 			{
 				localeId = _settings.LocaleId,
 				engineId = _settings.EngineId,
@@ -1100,12 +1218,12 @@ public class MainWindow : Window, IComponentConnector
 				recordingRetentionDays = _settings.RecordingRetentionDays,
 				ttsEngineId = _settings.TtsEngineId,
 				ttsVoiceId = _settings.TtsVoiceId
-			};
+			});
 		});
 
-		api.RegisterRoute("GET", "/clipboard", request =>
+		api.RegisterRoute("GET", "/clipboard", async _ =>
 		{
-			return UiGet(() =>
+			return await UiGetAsync<object?>(() =>
 			{
 				var items = _clipboardHistory.Entries.Select((s, i) => new { index = i, text = s }).ToList();
 				return (object)new { count = items.Count, items };
@@ -1115,35 +1233,56 @@ public class MainWindow : Window, IComponentConnector
 		AppLog.Info("REST API routes registered");
 	}
 
-	private object UiGet(Func<object> action)
+	private async Task<T> UiGetAsync<T>(Func<T> action)
 	{
 		if (Dispatcher.CheckAccess())
 			return action();
-		return Dispatcher.Invoke(action);
+		return await Dispatcher.InvokeAsync(action);
 	}
 
-	private object BuildHealthReport(HttpRequest _)
+	private async Task<T> UiGetAsync<T>(Func<Task<T>> action)
 	{
-		return UiGet(() =>
+		if (Dispatcher.CheckAccess())
+			return await action();
+		Task<T> pending = await Dispatcher.InvokeAsync(action);
+		return await pending;
+	}
+
+	private async Task<object?> BuildHealthReportAsync()
+	{
+		var snapshot = await UiGetAsync(() =>
 		{
-			var proc = _whisperServerProcess;
-			bool whisperRunning = proc != null && !proc.HasExited;
-			return new HealthReport
-			{
-				Status = "ok",
-				Version = typeof(MainWindow).Assembly.GetName()?.Version?.ToString() ?? "",
-				Uptime = default,
-				Timespan = "",
-				WhisperServerRunning = whisperRunning,
-				WhisperModelLoaded = whisperRunning,
-				TtsWorkerRunning = false,
-				AudioInputDevice = "",
-				SelectedModel = _settings.TranscriptionModelId,
-				StorageUsedMb = "",
-				HistoryCount = _history.Count,
-				VocabularyCount = _vocabulary.Count
-			};
+			bool whisperRunning = _whisperServerProcess != null && !_whisperServerProcess.HasExited;
+			string audioDevice = _audioDevices.FirstOrDefault(device => device.DeviceNumber == _settings.AudioInputDeviceNumber)?.Name ?? "Unavailable";
+			return (
+				WhisperRunning: whisperRunning,
+				TtsRunning: _ttsSynthesizer.IsEngineWarm(_settings.TtsEngineId),
+				AudioDevice: audioDevice,
+				SelectedModel: _settings.TranscriptionModelId,
+				HistoryCount: _history.Count,
+				VocabularyCount: _vocabulary.Count);
 		});
+
+		WhisperHealthResponse? workerHealth = snapshot.WhisperRunning
+			? await GetWhisperServerHealthAsync()
+			: null;
+		TimeSpan uptime = DateTimeOffset.UtcNow - _startedAt;
+		return new HealthReport
+		{
+			Status = snapshot.WhisperRunning && workerHealth == null ? "degraded" : "ok",
+			Version = typeof(MainWindow).Assembly.GetName()?.Version?.ToString() ?? "",
+			Uptime = _startedAt,
+			Timespan = uptime.ToString("c"),
+			WhisperServerRunning = snapshot.WhisperRunning,
+			WhisperModelLoaded = workerHealth?.ModelLoaded ?? false,
+			TtsWorkerRunning = snapshot.TtsRunning,
+			AudioInputDevice = snapshot.AudioDevice,
+			SelectedModel = snapshot.SelectedModel,
+			StorageUsedMb = CalculateStorageUsedMb(),
+			HistoryCount = snapshot.HistoryCount,
+			VocabularyCount = snapshot.VocabularyCount,
+			Error = snapshot.WhisperRunning && workerHealth == null ? "Whisper worker did not answer its authenticated health check." : ""
+		};
 	}
 
 	private void EnsureShortcutWidget()
@@ -1547,16 +1686,17 @@ public class MainWindow : Window, IComponentConnector
 			{
 				Tag = preset,
 				Margin = new Thickness(0.0, 0.0, 8.0, 0.0),
-				Padding = new Thickness(12.0, 7.0, 12.0, 7.0),
+				Padding = new Thickness(12.0, 6.0, 12.0, 6.0),
 				HorizontalContentAlignment = System.Windows.HorizontalAlignment.Stretch,
 				VerticalContentAlignment = VerticalAlignment.Center,
 				Style = (Style)FindResource("RoundedButton"),
-				MinHeight = 46.0,
-				MaxHeight = 48.0,
+				MinHeight = 58.0,
+				MaxHeight = 60.0,
 				Content = CreateModeButtonContent(preset)
 			};
 			button.RenderTransformOrigin = new System.Windows.Point(0.5, 0.5);
 			button.RenderTransform = new ScaleTransform(1.0, 1.0);
+			AutomationProperties.SetName(button, $"{preset.Name} mode");
 			button.Click += ModeButton_Click;
 			button.MouseEnter += ModeButton_MouseEnter;
 			button.MouseLeave += ModeButton_MouseLeave;
@@ -1627,7 +1767,7 @@ public class MainWindow : Window, IComponentConnector
 			LineHeight = 16.0,
 			Foreground = ResourceBrush("InkBrush")
 		};
-		new Border
+		Border badge = new Border
 		{
 			Background = ResourceBrush("SoftBrush"),
 			BorderBrush = ResourceBrush("LineBrush"),
@@ -1649,6 +1789,7 @@ public class MainWindow : Window, IComponentConnector
 			VerticalAlignment = VerticalAlignment.Center
 		};
 		stackPanel.Children.Add(element);
+		stackPanel.Children.Add(badge);
 		Grid.SetColumn(stackPanel, 1);
 		obj.Children.Add(stackPanel);
 		return obj;
@@ -1735,6 +1876,7 @@ public class MainWindow : Window, IComponentConnector
 			VerticalContentAlignment = SettingsTabButton.VerticalContentAlignment,
 			ToolTip = "Audio Studio"
 		};
+		AutomationProperties.SetName(_audioTabButton, "Audio Studio");
 		_audioTabButton.Click += TabButton_Click;
 		int index = tabsHost.Children.IndexOf(SettingsTabButton);
 		if (index >= 0)
@@ -1945,7 +2087,7 @@ public class MainWindow : Window, IComponentConnector
 		body.Children.Add(voiceOptions);
 		_ttsSampleTextBox = new System.Windows.Controls.TextBox
 		{
-			Text = "Hamza, Speak local TTS is ready.",
+			Text = "Speak local TTS is ready.",
 			MinHeight = 88.0,
 			TextWrapping = TextWrapping.Wrap,
 			AcceptsReturn = true,
@@ -2050,7 +2192,7 @@ public class MainWindow : Window, IComponentConnector
 			Orientation = System.Windows.Controls.Orientation.Vertical
 		};
 		TextBlock modelStatus = CreateAudioStatusText();
-		modelStatus.Text = "VoiceDesign is not installed in D:\\Models.";
+		modelStatus.Text = "VoiceDesign is not installed in the configured models folder.";
 		body.Children.Add(modelStatus);
 		_audioDesignPromptTextBox = CreateAudioTextBox(_settings.VoiceDesignPrompt, 92.0, acceptsReturn: true);
 		_audioDesignPromptTextBox.TextChanged += AudioDesignControl_Changed;
@@ -2561,7 +2703,7 @@ public class MainWindow : Window, IComponentConnector
 		stackPanel.Children.Add(heading);
 		stackPanel.Children.Add(new TextBlock
 		{
-			Text = "Generate audio from the current Speak output using the D:\\Models Qwen3 and Tortoise models.",
+			Text = "Generate audio from the current Speak output using the configured Qwen3 and Tortoise models.",
 			TextWrapping = TextWrapping.Wrap,
 			Margin = new Thickness(0.0, 5.0, 0.0, 14.0),
 			Foreground = ResourceBrush("MutedBrush")
@@ -2590,7 +2732,7 @@ public class MainWindow : Window, IComponentConnector
 
 		_ttsSampleTextBox = new System.Windows.Controls.TextBox
 		{
-			Text = "Hamza, Speak local TTS is ready.",
+			Text = "Speak local TTS is ready.",
 			MinHeight = 64.0,
 			TextWrapping = TextWrapping.Wrap,
 			AcceptsReturn = true,
@@ -2812,7 +2954,7 @@ public class MainWindow : Window, IComponentConnector
 		if (ReferenceEquals(sender, _audioCloudSttProviderComboBox))
 		{
 			ApplySelectedCloudSttProviderDefaults();
-			RefreshCloudSttModelsAsync(quiet: false);
+			_ = RefreshCloudSttModelsAsync(quiet: false);
 		}
 		SaveSettingsFromUi();
 		UpdateAudioWorkspaceStatus();
@@ -2887,7 +3029,7 @@ public class MainWindow : Window, IComponentConnector
 		}
 		string profileName = FirstNonEmpty(_settings.VoiceCloneProfileName, "cloned voice");
 		string engineId = (_audioCloneEngineComboBox?.SelectedValue as string) ?? "qwen3-base-1.7b";
-		string folder = System.IO.Path.Combine(FirstNonEmpty(_settings.VoiceCloneOutputRoot, MaxFlowSettings.Default.VoiceCloneOutputRoot), StableDirectoryName(profileName) + "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss"));
+		string folder = System.IO.Path.Combine(FirstNonEmpty(_settings.VoiceCloneOutputRoot, MaxFlowSettings.Default.VoiceCloneOutputRoot), StableDirectoryName(profileName) + "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture));
 		Directory.CreateDirectory(folder);
 		string copiedReference = System.IO.Path.Combine(folder, "reference" + System.IO.Path.GetExtension(_settings.VoiceCloneReferenceAudioPath));
 		File.Copy(_settings.VoiceCloneReferenceAudioPath, copiedReference, overwrite: true);
@@ -2982,7 +3124,7 @@ public class MainWindow : Window, IComponentConnector
 		string prompt = FirstNonEmpty(_settings.VoiceDesignPrompt, MaxFlowSettings.Default.VoiceDesignPrompt);
 		string folder = FirstNonEmpty(_settings.VoiceDesignOutputRoot, MaxFlowSettings.Default.VoiceDesignOutputRoot);
 		Directory.CreateDirectory(folder);
-		string path = System.IO.Path.Combine(folder, "voice-design-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".json");
+		string path = System.IO.Path.Combine(folder, "voice-design-" + DateTime.Now.ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture) + ".json");
 		File.WriteAllText(path, JsonSerializer.Serialize(new
 		{
 			createdAt = DateTimeOffset.Now,
@@ -3116,7 +3258,7 @@ public class MainWindow : Window, IComponentConnector
 		}
 		if (_audioDesignStatusTextBlock != null)
 		{
-			_audioDesignStatusTextBlock.Text = "VoiceDesign is not installed in D:\\Models.";
+			_audioDesignStatusTextBlock.Text = "VoiceDesign is not installed in the configured models folder.";
 		}
 		UpdateTtsStatus();
 	}
@@ -3470,7 +3612,7 @@ public class MainWindow : Window, IComponentConnector
 			_settingsScrollCts?.Cancel();
 			_settingsScrollCts?.Dispose();
 			_settingsScrollCts = new CancellationTokenSource();
-			SmoothScrollToOffsetAsync(scrollViewer, targetOffset, _settingsScrollCts.Token);
+			_ = SmoothScrollToOffsetAsync(scrollViewer, targetOffset, _settingsScrollCts.Token);
 		}
 	}
 
@@ -3657,7 +3799,7 @@ public class MainWindow : Window, IComponentConnector
 		TranscriptStats transcriptStats = GetCachedTranscriptStats();
 		WordsSpokenTextBlock.Text = transcriptStats.SpokenWordLabel + " / " + transcriptStats.TodaySpokenWordLabel;
 		VoiceStatsTextBlock.Text = transcriptStats.VoiceStatsLabel;
-		DictateWordsSpokenTextBlock.Text = transcriptStats.SpokenWordCount.ToString("N0");
+		DictateWordsSpokenTextBlock.Text = transcriptStats.SpokenWordCount.ToString("N0", System.Globalization.CultureInfo.CurrentCulture);
 		DictateTodayWordsTextBlock.Text = transcriptStats.TodaySpokenWordLabel;
 		DictateVoiceStatsTextBlock.Text = transcriptStats.TodaySessionLabel + " / " + transcriptStats.ActiveStreakLabel;
 		UpdateVoiceProfile();
@@ -3668,9 +3810,9 @@ public class MainWindow : Window, IComponentConnector
 	private void UpdateVoiceProfile()
 	{
 		VoiceProfileStats voiceProfileStats = GetCachedVoiceProfileStats();
-		ProfileWordsSpokenTextBlock.Text = voiceProfileStats.SpokenWordCount.ToString("N0");
+		ProfileWordsSpokenTextBlock.Text = voiceProfileStats.SpokenWordCount.ToString("N0", System.Globalization.CultureInfo.CurrentCulture);
 		ProfileTodayWordsTextBlock.Text = voiceProfileStats.TodayLabel;
-		ProfileSavedCorrectionsTextBlock.Text = voiceProfileStats.SavedCorrections.ToString("N0");
+		ProfileSavedCorrectionsTextBlock.Text = voiceProfileStats.SavedCorrections.ToString("N0", System.Globalization.CultureInfo.CurrentCulture);
 		ProfileAutoLearnedTextBlock.Text = voiceProfileStats.AutoLearnedLabel;
 		ProfileAccuracyTextBlock.Text = voiceProfileStats.AccuracyLabel;
 		ProfileSessionsTextBlock.Text = voiceProfileStats.SessionLabel;
@@ -4413,7 +4555,7 @@ public class MainWindow : Window, IComponentConnector
 		DictateWordCounterPanel.MinWidth = 132.0;
 		DictateWordCounterPanel.Padding = new Thickness(14.0, 11.0, 14.0, 10.0);
 		ActionBarPanel.Padding = new Thickness(10.0, 8.0, 10.0, 8.0);
-		ModesPanel.Margin = new Thickness(0.0, 10.0, 0.0, 6.0);
+		ModesPanel.Margin = new Thickness(0.0, 4.0, 0.0, 2.0);
 		RawTranscriptTextBox.Padding = new Thickness(14.0);
 		FormattedOutputTextBox.Padding = new Thickness(14.0);
 		HistorySelectedTextBox.Padding = new Thickness(14.0);
@@ -4426,21 +4568,21 @@ public class MainWindow : Window, IComponentConnector
 	private void ApplyModeCardFinishing()
 	{
 		ModesPanel.Rows = 1;
-		ModesPanel.MinHeight = 50.0;
-		ModesPanel.MaxHeight = 54.0;
+		ModesPanel.MinHeight = 58.0;
+		ModesPanel.MaxHeight = 60.0;
 		ModesPanel.ClipToBounds = false;
 		if (ModesPanel.Parent is FrameworkElement frameworkElement)
 		{
-			frameworkElement.MinHeight = Math.Max(frameworkElement.MinHeight, 52.0);
+			frameworkElement.MinHeight = Math.Max(frameworkElement.MinHeight, 60.0);
 			frameworkElement.ClipToBounds = false;
 		}
 		int modeIndex = 0;
 		foreach (System.Windows.Controls.Button item in ModesPanel.Children.OfType<System.Windows.Controls.Button>())
 		{
 			item.Margin = new Thickness(modeIndex == 0 ? 2.0 : 0.0, 0.0, 8.0, 0.0);
-			item.MinHeight = 46.0;
-			item.MaxHeight = 48.0;
-			item.Padding = new Thickness(12.0, 7.0, 12.0, 7.0);
+			item.MinHeight = 58.0;
+			item.MaxHeight = 60.0;
+			item.Padding = new Thickness(12.0, 6.0, 12.0, 6.0);
 			item.VerticalContentAlignment = VerticalAlignment.Center;
 			ScaleTransform scaleTransform = EnsureScaleTransform(item);
 			scaleTransform.BeginAnimation(ScaleTransform.ScaleXProperty, null);
@@ -5291,7 +5433,7 @@ public class MainWindow : Window, IComponentConnector
 		{
 			string text = System.IO.Path.Combine(_store.Root, "recordings");
 			Directory.CreateDirectory(text);
-			_recordingPath = System.IO.Path.Combine(text, $"speak-{DateTime.Now:yyyyMMdd-HHmmss}.wav");
+			_recordingPath = System.IO.Path.Combine(text, $"speak-{DateTime.Now.ToString("yyyyMMdd-HHmmss-fff", System.Globalization.CultureInfo.InvariantCulture)}-{Guid.NewGuid():N}.wav");
 			_recordingStopped = new TaskCompletionSource();
 			_recordingException = null;
 			_waveIn = new WaveInEvent
@@ -5369,66 +5511,6 @@ public class MainWindow : Window, IComponentConnector
 			return;
 		}
 		await TranscribeAndFormatAsync(path);
-		ArchiveOldRecordings();
-	}
-
-	private void ArchiveOldRecordings()
-	{
-		int recordingRetentionDays = _settings.RecordingRetentionDays;
-		if (recordingRetentionDays <= 0)
-		{
-			return;
-		}
-		string path = System.IO.Path.Combine(_store.Root, "recordings");
-		if (!Directory.Exists(path))
-		{
-			return;
-		}
-		try
-		{
-			DateTime dateTime = DateTime.Now.AddDays(-recordingRetentionDays);
-			string path2 = System.IO.Path.Combine(_store.Root, "recordings-archive");
-			int num = 0;
-			foreach (string item in Directory.EnumerateFiles(path, "*.wav", SearchOption.TopDirectoryOnly))
-			{
-				DateTime lastWriteTime = File.GetLastWriteTime(item);
-				if (!(lastWriteTime >= dateTime))
-				{
-					string text = System.IO.Path.Combine(path2, lastWriteTime.ToString("yyyy-MM"));
-					Directory.CreateDirectory(text);
-					File.Move(item, UniqueFilePath(System.IO.Path.Combine(text, System.IO.Path.GetFileName(item))));
-					num++;
-				}
-			}
-			if (num > 0)
-			{
-				AppLog.Info($"Archived {num} old recording file(s) from active recordings.");
-			}
-		}
-		catch (Exception exception)
-		{
-			AppLog.Warn("Recording archive pass failed.", exception);
-		}
-	}
-
-	private static string UniqueFilePath(string path)
-	{
-		if (!File.Exists(path))
-		{
-			return path;
-		}
-		string path2 = System.IO.Path.GetDirectoryName(path) ?? "";
-		string fileNameWithoutExtension = System.IO.Path.GetFileNameWithoutExtension(path);
-		string extension = System.IO.Path.GetExtension(path);
-		for (int i = 1; i < 1000; i++)
-		{
-			string text = System.IO.Path.Combine(path2, $"{fileNameWithoutExtension}-{i}{extension}");
-			if (!File.Exists(text))
-			{
-				return text;
-			}
-		}
-		return System.IO.Path.Combine(path2, $"{fileNameWithoutExtension}-{Guid.NewGuid():N}{extension}");
 	}
 
 	private void DisposeRecording()
@@ -5513,7 +5595,7 @@ public class MainWindow : Window, IComponentConnector
 	{
 		string result = await _cloudSpeechTranscriber.TranscribeAsync(audioPath, _settings);
 		CloudSttProviderOption cloudSttProviderOption = CloudSttProviderOption.Find(_settings.SttCloudProviderId);
-		WhisperRuntimeStatusTextBlock.Text = $"{cloudSttProviderOption.Name}: {_settings.SttCloudModel} at {_settings.SttCloudEndpoint}. Local recording stayed on this PC.";
+		WhisperRuntimeStatusTextBlock.Text = $"{cloudSttProviderOption.Name}: {_settings.SttCloudModel} at {_settings.SttCloudEndpoint}. The recording was sent to this cloud provider for transcription; a local recording may also be retained according to your retention setting.";
 		return result;
 	}
 
@@ -5530,8 +5612,8 @@ public class MainWindow : Window, IComponentConnector
 			Device = _settings.WhisperDeviceId,
 			KeepAliveMinutes = _settings.ModelKeepAliveMinutes
 		}, _jsonOptions);
-		using StringContent content2 = new StringContent(content, Encoding.UTF8, "application/json");
-		using HttpResponseMessage response = await _whisperClient.PostAsync("http://127.0.0.1:39731/transcribe", content2);
+		using HttpRequestMessage request = CreateWhisperRequest(HttpMethod.Post, "/transcribe", content);
+		using HttpResponseMessage response = await _whisperClient.SendAsync(request);
 		string text = await response.Content.ReadAsStringAsync();
 		if (!response.IsSuccessStatusCode)
 		{
@@ -5579,14 +5661,16 @@ public class MainWindow : Window, IComponentConnector
 		ProcessStartInfo processStartInfo = new ProcessStartInfo
 		{
 			FileName = _settings.WhisperPythonPath,
-			Arguments = $"\"{text}\" --host 127.0.0.1 --port 39731 --idle-minutes {_settings.ModelKeepAliveMinutes} --model-dir \"{value}\"",
+			Arguments = $"\"{text}\" --host 127.0.0.1 --port {WhisperServerPort} --idle-minutes {_settings.ModelKeepAliveMinutes} --model-dir \"{value}\"",
 			RedirectStandardOutput = true,
 			RedirectStandardError = true,
 			UseShellExecute = false,
 			CreateNoWindow = true
 		};
+		LocalTtsSynthesizer.SanitizeChildProcessEnvironment(processStartInfo);
 		processStartInfo.Environment["PYTHONUTF8"] = "1";
 		processStartInfo.Environment["PYTHONIOENCODING"] = "utf-8";
+		processStartInfo.Environment["SPEAK_WORKER_TOKEN"] = _whisperWorkerToken;
 		processStartInfo.Environment["XDG_CACHE_HOME"] = AppConfig.Current.Paths.CacheRoot;
 		string text2 = ResolveFfmpegDirectory();
 		if (!string.IsNullOrWhiteSpace(text2))
@@ -5615,6 +5699,8 @@ public class MainWindow : Window, IComponentConnector
 		{
 			throw new InvalidOperationException("Could not start the resident Whisper server.");
 		}
+		if (_processJob != null && !_processJob.AddProcess(_whisperServerProcess))
+			AppLog.Warn("Resident Whisper worker could not be assigned to the Speak process job.");
 		_whisperServerProcess.BeginOutputReadLine();
 		_whisperServerProcess.BeginErrorReadLine();
 		for (int attempt = 0; attempt < 40; attempt++)
@@ -5644,7 +5730,8 @@ public class MainWindow : Window, IComponentConnector
 		_ = 1;
 		try
 		{
-			using HttpResponseMessage response = await _whisperClient.GetAsync("http://127.0.0.1:39731/health");
+			using HttpRequestMessage request = CreateWhisperRequest(HttpMethod.Get, "/health");
+			using HttpResponseMessage response = await _whisperClient.SendAsync(request);
 			if (!response.IsSuccessStatusCode)
 			{
 				return null;
@@ -5692,12 +5779,9 @@ public class MainWindow : Window, IComponentConnector
 		bool stopConfirmed = false;
 		try
 		{
-			using HttpClient stopClient = new HttpClient
-			{
-				Timeout = TimeSpan.FromSeconds(5.0)
-			};
-			using StringContent content = new StringContent("{}", Encoding.UTF8, "application/json");
-			using HttpResponseMessage httpResponseMessage = await stopClient.PostAsync("http://127.0.0.1:39731/stop", content);
+			using CancellationTokenSource timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+			using HttpRequestMessage request = CreateWhisperRequest(HttpMethod.Post, "/stop", "{}");
+			using HttpResponseMessage httpResponseMessage = await _whisperClient.SendAsync(request, timeout.Token);
 			stopConfirmed = httpResponseMessage.IsSuccessStatusCode;
 		}
 		catch (Exception exception)
@@ -5717,22 +5801,19 @@ public class MainWindow : Window, IComponentConnector
 		return stopConfirmed;
 	}
 
-	private void StopWhisperServerForShutdown()
+	private async Task StopWhisperServerForShutdownAsync()
 	{
 		try
 		{
-			using HttpClient httpClient = new HttpClient
-			{
-				Timeout = TimeSpan.FromSeconds(2.0)
-			};
-			using StringContent content = new StringContent("{\"reason\":\"app-close\"}", Encoding.UTF8, "application/json");
-			httpClient.PostAsync("http://127.0.0.1:39731/stop", content).GetAwaiter().GetResult();
+			using CancellationTokenSource timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+			using HttpRequestMessage request = CreateWhisperRequest(HttpMethod.Post, "/stop", "{\"reason\":\"app-close\"}");
+			using HttpResponseMessage response = await _whisperClient.SendAsync(request, timeout.Token);
 		}
 		catch (Exception exception)
 		{
 			AppLog.Warn("Whisper shutdown stop request failed; falling back to process cleanup.", exception);
 		}
-		Task.Delay(350).GetAwaiter().GetResult();
+		await Task.Delay(350);
 		TerminateOwnedWhisperServerProcessTree();
 	}
 
@@ -5811,6 +5892,12 @@ public class MainWindow : Window, IComponentConnector
 
 	private static IEnumerable<string> ResolveBundledFfmpegDirectories()
 	{
+		string configuredFfmpegDirectory = Environment.GetEnvironmentVariable("SPEAK_FFMPEG_BIN") ?? "";
+		if (!string.IsNullOrWhiteSpace(configuredFfmpegDirectory))
+		{
+			yield return PortablePathResolver.ExpandPath(configuredFfmpegDirectory);
+		}
+
 		yield return System.IO.Path.Combine(AppContext.BaseDirectory, "tools", "ffmpeg", "bin");
 		yield return System.IO.Path.Combine(AppContext.BaseDirectory, "Tools", "ffmpeg", "bin");
 		yield return System.IO.Path.GetFullPath(System.IO.Path.Combine(AppContext.BaseDirectory, "..", "tools", "ffmpeg", "bin"));
@@ -5831,7 +5918,11 @@ public class MainWindow : Window, IComponentConnector
 			yield return System.IO.Path.Combine(toolsRoot, "ffmpeg", "bin");
 		}
 
-		yield return "C:\\ffmpeg\\bin";
+		string systemRoot = System.IO.Path.GetPathRoot(Environment.SystemDirectory) ?? "";
+		if (!string.IsNullOrWhiteSpace(systemRoot))
+		{
+			yield return System.IO.Path.Combine(systemRoot, "ffmpeg", "bin");
+		}
 	}
 
 	private static string ExtractWhisperError(string body)
@@ -5869,6 +5960,7 @@ public class MainWindow : Window, IComponentConnector
 			UseShellExecute = false,
 			CreateNoWindow = true
 		};
+		LocalTtsSynthesizer.SanitizeChildProcessEnvironment(processStartInfo);
 		processStartInfo.Environment["PYTHONUTF8"] = "1";
 		processStartInfo.Environment["PYTHONIOENCODING"] = "utf-8";
 		processStartInfo.Environment["XDG_CACHE_HOME"] = AppConfig.Current.Paths.CacheRoot;
@@ -5904,6 +5996,8 @@ public class MainWindow : Window, IComponentConnector
 			StartInfo = processStartInfo
 		};
 		process.Start();
+		if (_processJob != null && !_processJob.AddProcess(process))
+			AppLog.Warn("One-shot Whisper worker could not be assigned to the Speak process job.");
 		Task<string> outputTask = process.StandardOutput.ReadToEndAsync();
 		Task<string> errorTask = process.StandardError.ReadToEndAsync();
 		await process.WaitForExitAsync();
@@ -5941,7 +6035,9 @@ public class MainWindow : Window, IComponentConnector
 		RecordButton.Foreground = System.Windows.Media.Brushes.White;
 		RecordButtonGlyph.Visibility = (isRecording ? Visibility.Collapsed : Visibility.Visible);
 		RecordActivityPanel.Visibility = ((!isRecording) ? Visibility.Collapsed : Visibility.Visible);
-		RecordButton.ToolTip = (isRecording ? "Stop recording" : "Start recording");
+		string recordAction = isRecording ? "Stop recording" : "Start recording";
+		RecordButton.ToolTip = recordAction;
+		AutomationProperties.SetName(RecordButton, recordAction);
 		PlayRecordingFeedbackIfChanged(isRecording);
 		RefreshTrayMenu();
 		ScaleTransform scaleTransform2;
@@ -6357,7 +6453,24 @@ public class MainWindow : Window, IComponentConnector
 	{
 		try
 		{
-			string detail = ExportHistoryBackup();
+			string defaultDirectory = System.IO.Path.Combine(_store.Root, "exports");
+			Directory.CreateDirectory(defaultDirectory);
+			var dialog = new Microsoft.Win32.SaveFileDialog
+			{
+				Title = "Export Speak history backup",
+				Filter = "ZIP archive (*.zip)|*.zip",
+				DefaultExt = ".zip",
+				AddExtension = true,
+				InitialDirectory = defaultDirectory,
+				FileName = $"Speak-history-backup-{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.zip"
+			};
+			if (dialog.ShowDialog(this) != true)
+			{
+				StatusTextBlock.Text = "Backup export cancelled";
+				return;
+			}
+
+			string detail = ExportHistoryBackup(dialog.FileName);
 			StatusTextBlock.Text = "History backup exported";
 			ShowCompletionToast("Speak backup exported", detail);
 		}
@@ -6368,11 +6481,15 @@ public class MainWindow : Window, IComponentConnector
 		}
 	}
 
-	private string ExportHistoryBackup()
+	private string ExportHistoryBackup(string destinationPath)
 	{
-		string text = (Directory.Exists("E:\\") ? System.IO.Path.Combine("E:\\", "Speak-App-Backups", "Exports") : System.IO.Path.Combine(_store.Root, "exports"));
-		Directory.CreateDirectory(text);
-		string text2 = System.IO.Path.Combine(_store.Root, "exports", "scratch-" + Guid.NewGuid().ToString("N"));
+		string fullDestinationPath = System.IO.Path.GetFullPath(destinationPath);
+		string? destinationDirectory = System.IO.Path.GetDirectoryName(fullDestinationPath);
+		if (string.IsNullOrWhiteSpace(destinationDirectory))
+			throw new InvalidOperationException("Choose a valid export destination.");
+		Directory.CreateDirectory(destinationDirectory);
+
+		string text2 = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "Speak", "exports", "scratch-" + Guid.NewGuid().ToString("N"));
 		Directory.CreateDirectory(text2);
 		try
 		{
@@ -6382,20 +6499,18 @@ public class MainWindow : Window, IComponentConnector
 			var value = new
 			{
 				createdAt = DateTimeOffset.Now,
-				dataRoot = _store.Root,
 				historyItems = _history.Count,
 				vocabularyItems = _vocabulary.Count,
 				app = "Speak"
 			};
 			File.WriteAllText(System.IO.Path.Combine(text2, "export-manifest.json"), JsonSerializer.Serialize(value, _jsonOptions), Encoding.UTF8);
-			string text3 = System.IO.Path.Combine(text, $"Speak-history-backup-{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.zip");
-			if (File.Exists(text3))
+			if (File.Exists(fullDestinationPath))
 			{
-				File.Delete(text3);
+				File.Delete(fullDestinationPath);
 			}
-			ZipFile.CreateFromDirectory(text2, text3, CompressionLevel.Optimal, includeBaseDirectory: false);
-			AppLog.Info("Exported Speak history backup to " + text3 + ".");
-			return text3;
+			ZipFile.CreateFromDirectory(text2, fullDestinationPath, CompressionLevel.Optimal, includeBaseDirectory: false);
+			AppLog.Info("Exported Speak history backup to a user-selected path.");
+			return fullDestinationPath;
 		}
 		finally
 		{
@@ -6415,14 +6530,62 @@ public class MainWindow : Window, IComponentConnector
 		}
 	}
 
-	private void ClearHistoryButton_Click(object sender, RoutedEventArgs e)
+	private async void ClearHistoryButton_Click(object sender, RoutedEventArgs e)
 	{
-		_history.Clear();
-		InvalidateStatsCache();
-		SaveHistoryInBackground();
-		StatusTextBlock.Text = "History cleared";
-		UpdateLibraryStats();
-		UpdateHistorySelectionDetails();
+		if (_isRecording || _isTranscribing)
+		{
+			StatusTextBlock.Text = "Stop recording or transcription before clearing history";
+			return;
+		}
+		MessageBoxResult confirmation = System.Windows.MessageBox.Show(
+			this,
+			"This permanently erases all history, recovery copies, and linked recordings stored by Speak. This cannot be undone.\n\nContinue?",
+			"Clear Speak history?",
+			MessageBoxButton.YesNo,
+			MessageBoxImage.Warning,
+			MessageBoxResult.No);
+		if (confirmation != MessageBoxResult.Yes)
+		{
+			StatusTextBlock.Text = "History clear cancelled";
+			return;
+		}
+		await ClearHistoryAsync();
+	}
+
+	private async Task ClearHistoryAsync()
+	{
+		await _historyMutationGate.WaitAsync();
+		try
+		{
+			List<string> audioPaths = _history
+				.Select(card => card.AudioPath)
+				.Where(path => !string.IsNullOrWhiteSpace(path))
+				.ToList();
+			_history.Clear();
+			InvalidateStatsCache();
+			Interlocked.Increment(ref _historySaveVersion);
+			StatusTextBlock.Text = "Erasing history and linked recordings...";
+			Task pendingSave;
+			lock (_persistenceTaskSync)
+				pendingSave = _historySaveTask;
+			try
+			{
+				await pendingSave;
+				await Task.Run(() => _store.ClearHistoryData(audioPaths));
+				StatusTextBlock.Text = "History, backups, temporary files, and linked recordings cleared";
+			}
+			catch (Exception exception)
+			{
+				StatusTextBlock.Text = "History was cleared in the app, but some files could not be erased";
+				AppLog.Warn("History erasure failed.", exception);
+			}
+			UpdateLibraryStats();
+			UpdateHistorySelectionDetails();
+		}
+		finally
+		{
+			_historyMutationGate.Release();
+		}
 	}
 
 	private void HistorySearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -6459,13 +6622,13 @@ public class MainWindow : Window, IComponentConnector
 			{
 				ApplySelectedPolishProviderDefaults();
 				SaveSettingsFromUi();
-				RefreshLlmPolishModelsAsync(quiet: false);
+				_ = RefreshLlmPolishModelsAsync(quiet: false);
 			}
 			else if (sender == CloudSttProviderComboBox)
 			{
 				ApplySelectedCloudSttProviderDefaults();
 				SaveSettingsFromUi();
-				RefreshCloudSttModelsAsync(quiet: false);
+				_ = RefreshCloudSttModelsAsync(quiet: false);
 			}
 			else
 			{
@@ -6601,12 +6764,18 @@ public class MainWindow : Window, IComponentConnector
 		try
 		{
 			MaxFlowSettings settings = SettingsFromUiWithoutSaving();
-			NormalizeLlmApiKeySetting(settings);
+			bool credentialMigrated = NormalizeLlmApiKeySetting(settings);
 			if (!string.Equals(LlmPolishApiKeyEnvTextBox.Text, settings.LlmPolishApiKeyEnvironmentVariable, StringComparison.Ordinal))
 			{
 				_isLoading = true;
 				LlmPolishApiKeyEnvTextBox.Text = settings.LlmPolishApiKeyEnvironmentVariable;
 				_isLoading = false;
+			}
+			if (credentialMigrated)
+			{
+				_settings.LlmPolishApiKeyEnvironmentVariable = settings.LlmPolishApiKeyEnvironmentVariable;
+				_store.SaveSettings(_settings);
+				_store.PurgeSettingsRecoveryCopies();
 			}
 			if (!quiet)
 			{
@@ -6698,12 +6867,18 @@ public class MainWindow : Window, IComponentConnector
 		try
 		{
 			MaxFlowSettings settings = SettingsFromUiWithoutSaving();
-			NormalizeCloudSttApiKeySetting(settings);
+			bool credentialMigrated = NormalizeCloudSttApiKeySetting(settings);
 			if (!string.Equals(CloudSttApiKeyEnvTextBox.Text, settings.SttCloudApiKeyEnvironmentVariable, StringComparison.Ordinal))
 			{
 				_isLoading = true;
 				CloudSttApiKeyEnvTextBox.Text = settings.SttCloudApiKeyEnvironmentVariable;
 				_isLoading = false;
+			}
+			if (credentialMigrated)
+			{
+				_settings.SttCloudApiKeyEnvironmentVariable = settings.SttCloudApiKeyEnvironmentVariable;
+				_store.SaveSettings(_settings);
+				_store.PurgeSettingsRecoveryCopies();
 			}
 			if (!quiet)
 			{
@@ -7023,7 +7198,7 @@ public class MainWindow : Window, IComponentConnector
 		if (addToHistory && _settings.KeepHistory)
 		{
 			transcriptCard = CreateHistoryCard(text, text2, _selectedMode, audioPath);
-			SaveNewHistoryCard(transcriptCard);
+			_ = SaveNewHistoryCardAsync(transcriptCard);
 		}
 		StatusTextBlock.Text = "Formatted";
 		return transcriptCard;
@@ -7043,7 +7218,7 @@ public class MainWindow : Window, IComponentConnector
 		if (addToHistory && _settings.KeepHistory)
 		{
 			transcriptCard = CreateHistoryCard(raw, text, _selectedMode, audioPath);
-			SaveNewHistoryCard(transcriptCard);
+			await SaveNewHistoryCardAsync(transcriptCard);
 		}
 		return transcriptCard;
 	}
@@ -7100,32 +7275,55 @@ public class MainWindow : Window, IComponentConnector
 		};
 	}
 
-	private void SaveNewHistoryCard(TranscriptCard card)
+	private async Task SaveNewHistoryCardAsync(TranscriptCard card)
 	{
-		_history.Insert(0, card);
-		InvalidateStatsCache();
-		SaveHistoryInBackground();
-		_historyView.Refresh();
-		UpdateLibraryStats();
+		await _historyMutationGate.WaitAsync();
+		try
+		{
+			_history.Insert(0, card);
+			InvalidateStatsCache();
+			SaveHistoryInBackground();
+			_historyView.Refresh();
+			UpdateLibraryStats();
+		}
+		finally
+		{
+			_historyMutationGate.Release();
+		}
 	}
 
 	private void SaveHistoryInBackground()
 	{
 		List<TranscriptCard> snapshot = _history.ToList();
 		int version = Interlocked.Increment(ref _historySaveVersion);
-		_ = PersistHistorySnapshotAsync(snapshot, version);
+		_ = QueueHistorySave(snapshot, version);
+	}
+
+	private Task QueueHistorySave(List<TranscriptCard> snapshot, int version)
+	{
+		lock (_persistenceTaskSync)
+		{
+			_historySaveTask = _historySaveTask
+				.ContinueWith(
+					_ => PersistHistorySnapshotAsync(snapshot, version),
+					CancellationToken.None,
+					TaskContinuationOptions.ExecuteSynchronously,
+					TaskScheduler.Default)
+				.Unwrap();
+			return _historySaveTask;
+		}
 	}
 
 	private async Task PersistHistorySnapshotAsync(List<TranscriptCard> snapshot, int version)
 	{
-		await _historySaveGate.WaitAsync();
+		await _historySaveGate.WaitAsync().ConfigureAwait(false);
 		try
 		{
 			if (version != Volatile.Read(ref _historySaveVersion))
 			{
 				return;
 			}
-			await _store.SaveHistoryAsync(snapshot);
+			await _store.SaveHistoryAsync(snapshot).ConfigureAwait(false);
 		}
 		catch (Exception exception)
 		{
@@ -7141,19 +7339,34 @@ public class MainWindow : Window, IComponentConnector
 	{
 		List<VocabularyEntry> snapshot = _vocabulary.ToList();
 		int version = Interlocked.Increment(ref _vocabularySaveVersion);
-		_ = PersistVocabularySnapshotAsync(snapshot, version);
+		_ = QueueVocabularySave(snapshot, version);
+	}
+
+	private Task QueueVocabularySave(List<VocabularyEntry> snapshot, int version)
+	{
+		lock (_persistenceTaskSync)
+		{
+			_vocabularySaveTask = _vocabularySaveTask
+				.ContinueWith(
+					_ => PersistVocabularySnapshotAsync(snapshot, version),
+					CancellationToken.None,
+					TaskContinuationOptions.ExecuteSynchronously,
+					TaskScheduler.Default)
+				.Unwrap();
+			return _vocabularySaveTask;
+		}
 	}
 
 	private async Task PersistVocabularySnapshotAsync(List<VocabularyEntry> snapshot, int version)
 	{
-		await _vocabularySaveGate.WaitAsync();
+		await _vocabularySaveGate.WaitAsync().ConfigureAwait(false);
 		try
 		{
 			if (version != Volatile.Read(ref _vocabularySaveVersion))
 			{
 				return;
 			}
-			await _store.SaveVocabularyAsync(snapshot);
+			await _store.SaveVocabularyAsync(snapshot).ConfigureAwait(false);
 		}
 		catch (Exception exception)
 		{
@@ -7179,6 +7392,83 @@ public class MainWindow : Window, IComponentConnector
 		return values.FirstOrDefault((string value) => !string.IsNullOrWhiteSpace(value))?.Trim() ?? "";
 	}
 
+	private HttpRequestMessage CreateWhisperRequest(HttpMethod method, string path, string? json = null)
+	{
+		var request = new HttpRequestMessage(method, WhisperServerBaseUrl + path);
+		request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _whisperWorkerToken);
+		if (json != null)
+			request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+		return request;
+	}
+
+	private static string CreateWorkerToken()
+	{
+		return Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
+			.TrimEnd('=')
+			.Replace('+', '-')
+			.Replace('/', '_');
+	}
+
+	private static bool TryGetRestApiConfiguration(out string token, out IReadOnlyList<string> allowedOrigins)
+	{
+		string enabled = ReadEnvironmentVariable("SPEAK_ENABLE_REST_API");
+		token = ReadEnvironmentVariable("SPEAK_REST_API_TOKEN");
+		bool isEnabled = enabled.Equals("1", StringComparison.OrdinalIgnoreCase) ||
+			enabled.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+			enabled.Equals("yes", StringComparison.OrdinalIgnoreCase);
+
+		allowedOrigins = ReadEnvironmentVariable("SPEAK_REST_API_ALLOWED_ORIGINS")
+			.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+			.Where(origin => Uri.TryCreate(origin, UriKind.Absolute, out Uri? uri) &&
+				(uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ||
+				 uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)))
+			.Distinct(StringComparer.OrdinalIgnoreCase)
+			.ToList();
+
+		if (!isEnabled)
+			return false;
+		if (token.Length < 32)
+		{
+			AppLog.Warn("REST API opt-in was ignored because SPEAK_REST_API_TOKEN is missing or shorter than 32 characters.");
+			return false;
+		}
+		return true;
+	}
+
+	private static string ReadEnvironmentVariable(string name)
+	{
+		try
+		{
+			return Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.Process) ??
+				Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.User) ??
+				"";
+		}
+		catch
+		{
+			return Environment.GetEnvironmentVariable(name) ?? "";
+		}
+	}
+
+	private string CalculateStorageUsedMb()
+	{
+		try
+		{
+			long bytes = Directory.Exists(_store.Root)
+				? Directory.EnumerateFiles(_store.Root, "*", SearchOption.AllDirectories)
+					.Sum(path =>
+					{
+						try { return new FileInfo(path).Length; }
+						catch { return 0L; }
+					})
+				: 0L;
+			return (bytes / 1024d / 1024d).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
+		}
+		catch
+		{
+			return "unavailable";
+		}
+	}
+
 	private void TryCopyToClipboard(string text)
 	{
 		if (TrySetClipboardText(text))
@@ -7199,16 +7489,17 @@ public class MainWindow : Window, IComponentConnector
 			return;
 		}
 
-		if (FirstNonEmpty(outputDestinationOverride ?? "", _settings.OutputDestinationId).Equals("paste", StringComparison.OrdinalIgnoreCase)
-			&& !PasteGuard.IsSafeToPaste())
+		bool shouldPaste = FirstNonEmpty(outputDestinationOverride ?? "", _settings.OutputDestinationId)
+			.Equals("paste", StringComparison.OrdinalIgnoreCase);
+		if (shouldPaste && !PasteGuard.IsSafeToPaste(_deliveryTargetWindow))
 		{
-			StatusTextBlock.Text = "Paste guarded: target appears to be a sensitive/terminal window";
+			StatusTextBlock.Text = "Paste guarded: target could not be verified or appears sensitive";
 			AppLog.Warn($"Paste blocked by PasteGuard for target '{_deliveryTargetProcessName}'");
 			TryCopyToClipboard(text);
 			return;
 		}
 
-		if (!FirstNonEmpty(outputDestinationOverride ?? "", _settings.OutputDestinationId).Equals("paste", StringComparison.OrdinalIgnoreCase))
+		if (!shouldPaste)
 		{
 			TryCopyToClipboard(text);
 			return;
@@ -7223,9 +7514,20 @@ public class MainWindow : Window, IComponentConnector
 			StatusTextBlock.Text = "Copied to clipboard; target app was unavailable";
 			return;
 		}
+		if (!PasteGuard.IsSafeToPaste(_deliveryTargetWindow, requireForeground: true))
+		{
+			StatusTextBlock.Text = "Copied to clipboard; focused field was sensitive or could not be verified";
+			AppLog.Warn($"Paste blocked after focus verification for target '{_deliveryTargetProcessName}'.");
+			return;
+		}
 		for (int attempt = 1; attempt <= 3; attempt++)
 		{
 			await Task.Delay(PasteDelayForTarget(_deliveryTargetProcessName, attempt));
+			if (!PasteGuard.IsSafeToPaste(_deliveryTargetWindow, requireForeground: true))
+			{
+				StatusTextBlock.Text = "Copied to clipboard; paste target changed";
+				return;
+			}
 			if (SendCtrlV())
 			{
 				StatusTextBlock.Text = "Pasted into active app";
@@ -7238,7 +7540,7 @@ public class MainWindow : Window, IComponentConnector
 			AppLog.Warn($"Paste shortcut attempt {attempt} failed.");
 			await TryRestoreDeliveryTargetAsync();
 		}
-		if (TrySendKeysPaste())
+		if (PasteGuard.IsSafeToPaste(_deliveryTargetWindow, requireForeground: true) && TrySendKeysPaste())
 		{
 			StatusTextBlock.Text = "Pasted into active app";
 			ShowCompletionToast("Speak pasted", PreviewToastText(text));
@@ -7398,10 +7700,11 @@ public class MainWindow : Window, IComponentConnector
 			string text = TryReadFocusedEditableText(deliveryTargetWindow);
 			if (string.IsNullOrWhiteSpace(text))
 			{
-				text = pastedText;
+				AppLog.Info("External edit learner skipped because the focused editor could not be safely read.");
+				return;
 			}
 			AppLog.Info("External edit learner watching " + _deliveryTargetProcessName + " for corrections.");
-			MonitorExternalEditLearningAsync(deliveryTargetWindow, _deliveryTargetProcessName, text, pastedText, _externalEditLearningCts.Token);
+			_ = MonitorExternalEditLearningAsync(deliveryTargetWindow, _deliveryTargetProcessName, text, pastedText, _externalEditLearningCts.Token);
 		}
 	}
 
@@ -7480,13 +7783,19 @@ public class MainWindow : Window, IComponentConnector
 			{
 				return "";
 			}
+			uint targetThreadId = GetWindowThreadProcessId(expectedTargetWindow, out uint targetProcessId);
+			AutomationElement.AutomationElementInformation currentElement = focusedElement.Current;
+			if (targetThreadId == 0 || targetProcessId == 0 || currentElement.ProcessId != (int)targetProcessId || currentElement.IsPassword)
+			{
+				return "";
+			}
 			if (focusedElement.TryGetCurrentPattern(ValuePattern.Pattern, out var patternObject) && patternObject is ValuePattern { Current: var current })
 			{
-				return (current.Value ?? "").TrimEnd('\r', '\n');
+				return LimitLearningText(current.Value ?? "");
 			}
 			if (focusedElement.TryGetCurrentPattern(TextPattern.Pattern, out var patternObject2) && patternObject2 is TextPattern textPattern)
 			{
-				return (textPattern.DocumentRange.GetText(12000) ?? "").TrimEnd('\r', '\n');
+				return LimitLearningText(textPattern.DocumentRange.GetText(2048) ?? "");
 			}
 		}
 		catch (ElementNotAvailableException)
@@ -7501,6 +7810,12 @@ public class MainWindow : Window, IComponentConnector
 			AppLog.Warn("Focused edit text UI Automation read failed.", exception2);
 		}
 		return "";
+	}
+
+	private static string LimitLearningText(string value)
+	{
+		string text = value.TrimEnd('\r', '\n');
+		return text.Length <= 2048 ? text : text[^2048..];
 	}
 
 	private void LearnExternalEditCorrections(IReadOnlyList<LearnedCorrection> corrections, string processName)
@@ -7572,7 +7887,7 @@ public class MainWindow : Window, IComponentConnector
 			};
 			toast.Show();
 			toast.PlaceNearTaskbar();
-			CloseLearningToastAfterDelayAsync(toast);
+			_ = CloseLearningToastAfterDelayAsync(toast);
 		}
 		catch (Exception exception)
 		{
@@ -7710,8 +8025,8 @@ public class MainWindow : Window, IComponentConnector
 	{
 		try
 		{
-			GetWindowThreadProcessId(hwnd, out var processId);
-			return (processId == 0) ? "unknown" : Process.GetProcessById((int)processId).ProcessName;
+			uint threadId = GetWindowThreadProcessId(hwnd, out var processId);
+			return (threadId == 0 || processId == 0) ? "unknown" : Process.GetProcessById((int)processId).ProcessName;
 		}
 		catch
 		{
@@ -7845,6 +8160,7 @@ public class MainWindow : Window, IComponentConnector
 
 	private void SaveSettingsFromUi()
 	{
+		int previousRecordingRetentionDays = _settings.RecordingRetentionDays;
 		TranscriptionModelOption transcriptionModelOption = SelectedTranscriptionModel() ?? _transcriptionModels.First();
 		_settings = new MaxFlowSettings
 		{
@@ -7893,8 +8209,13 @@ public class MainWindow : Window, IComponentConnector
 			VoiceDesignPrompt = _audioDesignPromptTextBox?.Text.Trim() ?? _settings.VoiceDesignPrompt,
 			VoiceDesignOutputRoot = FirstNonEmpty(_settings.VoiceDesignOutputRoot, MaxFlowSettings.Default.VoiceDesignOutputRoot)
 		};
-		_settings = NormalizeSettings(_settings, _transcriptionModels);
+		_settings = NormalizeSettings(_settings, _transcriptionModels, out bool credentialMigrated);
 		_store.SaveSettings(_settings);
+		if (credentialMigrated)
+		{
+			_store.PurgeSettingsRecoveryCopies();
+		}
+		ReconfigureRecordingJanitor(previousRecordingRetentionDays);
 		SyncAudioControlsFromSettings();
 		UpdateTtsStatus();
 		UpdateAudioWorkspaceStatus();
@@ -7920,70 +8241,116 @@ public class MainWindow : Window, IComponentConnector
 		RefreshTrayMenu();
 	}
 
-	private static void NormalizeLlmApiKeySetting(MaxFlowSettings settings)
+	private static bool NormalizeLlmApiKeySetting(MaxFlowSettings settings)
 	{
 		LlmPolishProviderOption llmPolishProviderOption = LlmPolishProviderOption.Find(settings.LlmPolishProviderId);
-		if (llmPolishProviderOption.RequiresApiKey)
+		string value = settings.LlmPolishApiKeyEnvironmentVariable.Trim();
+		string environmentName = string.IsNullOrWhiteSpace(llmPolishProviderOption.DefaultApiKeyEnvironmentVariable)
+			? "SPEAK_LLM_API_KEY"
+			: llmPolishProviderOption.DefaultApiKeyEnvironmentVariable;
+		if (string.IsNullOrWhiteSpace(value))
 		{
-			string value = settings.LlmPolishApiKeyEnvironmentVariable.Trim();
-			if (string.IsNullOrWhiteSpace(value))
-			{
-				settings.LlmPolishApiKeyEnvironmentVariable = llmPolishProviderOption.DefaultApiKeyEnvironmentVariable;
-			}
-			else if (LooksLikeSecretApiKey(value))
-			{
-				string text = (string.IsNullOrWhiteSpace(llmPolishProviderOption.DefaultApiKeyEnvironmentVariable) ? "SPEAK_LLM_API_KEY" : llmPolishProviderOption.DefaultApiKeyEnvironmentVariable);
-				Environment.SetEnvironmentVariable(text, value, EnvironmentVariableTarget.User);
-				Environment.SetEnvironmentVariable(text, value, EnvironmentVariableTarget.Process);
-				settings.LlmPolishApiKeyEnvironmentVariable = text;
-				AppLog.Info("Moved pasted LLM API key into user environment variable " + text + ".");
-			}
+			settings.LlmPolishApiKeyEnvironmentVariable = llmPolishProviderOption.RequiresApiKey
+				? environmentName
+				: "";
+			return false;
 		}
+		if (LooksLikeSecretApiKey(value))
+		{
+			MoveSecretToEnvironment(environmentName, value);
+			settings.LlmPolishApiKeyEnvironmentVariable = environmentName;
+			AppLog.Info("Moved pasted LLM API key into user environment variable " + environmentName + ".");
+			return true;
+		}
+		if (!IsEnvironmentVariableName(value))
+		{
+			settings.LlmPolishApiKeyEnvironmentVariable = llmPolishProviderOption.RequiresApiKey
+				? environmentName
+				: "";
+			AppLog.Warn("Ignored an invalid LLM API key environment variable name.");
+		}
+		return false;
 	}
 
-	private static void NormalizeCloudSttApiKeySetting(MaxFlowSettings settings)
+	private static bool NormalizeCloudSttApiKeySetting(MaxFlowSettings settings)
 	{
 		CloudSttProviderOption cloudSttProviderOption = CloudSttProviderOption.Find(settings.SttCloudProviderId);
 		string value = settings.SttCloudApiKeyEnvironmentVariable.Trim();
+		string environmentName = string.IsNullOrWhiteSpace(cloudSttProviderOption.DefaultApiKeyEnvironmentVariable)
+			? "SPEAK_STT_API_KEY"
+			: cloudSttProviderOption.DefaultApiKeyEnvironmentVariable;
 		if (string.IsNullOrWhiteSpace(value))
 		{
-			settings.SttCloudApiKeyEnvironmentVariable = cloudSttProviderOption.DefaultApiKeyEnvironmentVariable;
+			settings.SttCloudApiKeyEnvironmentVariable = environmentName;
+			return false;
 		}
-		else if (LooksLikeSecretApiKey(value))
+		if (LooksLikeSecretApiKey(value))
 		{
-			string text = (string.IsNullOrWhiteSpace(cloudSttProviderOption.DefaultApiKeyEnvironmentVariable) ? "SPEAK_STT_API_KEY" : cloudSttProviderOption.DefaultApiKeyEnvironmentVariable);
-			Environment.SetEnvironmentVariable(text, value, EnvironmentVariableTarget.User);
-			Environment.SetEnvironmentVariable(text, value, EnvironmentVariableTarget.Process);
-			settings.SttCloudApiKeyEnvironmentVariable = text;
-			AppLog.Info("Moved pasted cloud STT API key into user environment variable " + text + ".");
+			MoveSecretToEnvironment(environmentName, value);
+			settings.SttCloudApiKeyEnvironmentVariable = environmentName;
+			AppLog.Info("Moved pasted cloud STT API key into user environment variable " + environmentName + ".");
+			return true;
 		}
+		if (!IsEnvironmentVariableName(value))
+		{
+			settings.SttCloudApiKeyEnvironmentVariable = environmentName;
+			AppLog.Warn("Ignored an invalid cloud STT API key environment variable name.");
+		}
+		return false;
+	}
+
+	private static void MoveSecretToEnvironment(string environmentName, string value)
+	{
+		Environment.SetEnvironmentVariable(environmentName, value, EnvironmentVariableTarget.User);
+		Environment.SetEnvironmentVariable(environmentName, value, EnvironmentVariableTarget.Process);
 	}
 
 	private static bool LooksLikeSecretApiKey(string value)
 	{
 		string text = value.Trim();
-		if (text.StartsWith("gsk_", StringComparison.OrdinalIgnoreCase) || text.StartsWith("sk-", StringComparison.OrdinalIgnoreCase))
+		string[] knownPrefixes =
 		{
-			return text.Length >= 24;
-		}
-		if (text.Length >= 32)
+			"gsk_", "sk-", "sk_", "rk_", "hf_", "ghp_", "gho_", "ghu_", "ghs_", "ghr_",
+			"github_pat_", "glpat-", "npm_", "pypi-", "xoxb-", "xoxp-", "xoxa-", "xoxr-",
+			"AKIA", "ASIA", "AIza"
+		};
+		if (text.Length >= 16
+			&& knownPrefixes.Any(prefix => text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
 		{
-			return !IsEnvironmentVariableName(text);
+			return true;
 		}
-		return false;
+		if (text.Length < 32)
+		{
+			return false;
+		}
+		bool tokenCharactersOnly = text.All(character =>
+			char.IsAsciiLetterOrDigit(character)
+			|| character is '_' or '-' or '.' or '+' or '/' or '=');
+		if (!tokenCharactersOnly)
+		{
+			return false;
+		}
+		bool conventionalEnvironmentName = IsEnvironmentVariableName(text)
+			&& text.All(character => !char.IsAsciiLetter(character) || char.IsAsciiLetterUpper(character));
+		return !conventionalEnvironmentName;
 	}
 
 	private static bool IsEnvironmentVariableName(string value)
 	{
-		if (string.IsNullOrWhiteSpace(value) || char.IsDigit(value[0]))
+		if (string.IsNullOrWhiteSpace(value)
+			|| !(char.IsAsciiLetter(value[0]) || value[0] == '_'))
 		{
 			return false;
 		}
-		return value.All((char character) => char.IsLetterOrDigit(character) || character == '_');
+		return value.All(character => char.IsAsciiLetterOrDigit(character) || character == '_');
 	}
 
-	private static MaxFlowSettings NormalizeSettings(MaxFlowSettings settings, IReadOnlyList<TranscriptionModelOption> transcriptionModels)
+	private static MaxFlowSettings NormalizeSettings(
+		MaxFlowSettings settings,
+		IReadOnlyList<TranscriptionModelOption> transcriptionModels,
+		out bool credentialMigrated)
 	{
+		credentialMigrated = false;
 		string legacyWhisperPythonPath = System.IO.Path.Combine(AppConfig.Current.Paths.ToolsRoot, "whisper-local", "Scripts", "python.exe");
 		bool flag = settings.WhisperPythonPath.Equals(legacyWhisperPythonPath, StringComparison.OrdinalIgnoreCase);
 		if (string.IsNullOrWhiteSpace(settings.EngineId) || settings.EngineId.Equals("windows-local-lab", StringComparison.OrdinalIgnoreCase))
@@ -8036,7 +8403,7 @@ public class MainWindow : Window, IComponentConnector
 		{
 			settings.SttCloudApiKeyEnvironmentVariable = cloudSttProviderOption.DefaultApiKeyEnvironmentVariable;
 		}
-		NormalizeCloudSttApiKeySetting(settings);
+		credentialMigrated |= NormalizeCloudSttApiKeySetting(settings);
 		LlmPolishProviderOption llmPolishProviderOption = LlmPolishProviderOption.Find(settings.LlmPolishProviderId);
 		settings.LlmPolishProviderId = llmPolishProviderOption.Id;
 		if (!llmPolishProviderOption.Id.Equals("off", StringComparison.OrdinalIgnoreCase))
@@ -8054,8 +8421,8 @@ public class MainWindow : Window, IComponentConnector
 			{
 				settings.LlmPolishApiKeyEnvironmentVariable = llmPolishProviderOption.DefaultApiKeyEnvironmentVariable;
 			}
-			NormalizeLlmApiKeySetting(settings);
 		}
+		credentialMigrated |= NormalizeLlmApiKeySetting(settings);
 		if (LlmPolishTimeoutOption.Presets.All((LlmPolishTimeoutOption option) => option.Seconds != settings.LlmPolishTimeoutSeconds))
 		{
 			settings.LlmPolishTimeoutSeconds = MaxFlowSettings.Default.LlmPolishTimeoutSeconds;
@@ -8196,7 +8563,7 @@ public class MainWindow : Window, IComponentConnector
 		string value2 = (string.IsNullOrWhiteSpace(_settings.LlmPolishModel) ? llmPolishProviderOption.DefaultModel : _settings.LlmPolishModel);
 		string value3 = (llmPolishProviderOption.RequiresApiKey ? (" Uses env var " + FirstNonEmpty(_settings.LlmPolishApiKeyEnvironmentVariable, llmPolishProviderOption.DefaultApiKeyEnvironmentVariable) + ".") : "");
 		LlmPolishStatusTextBlock.Text = $"{llmPolishProviderOption.Name}. Timeout {_settings.LlmPolishTimeoutSeconds}s.{value3}";
-		LlmPolishRuntimeTextBlock.Text = $"{llmPolishProviderOption.Name}: {value2} at {value}. Falls back to local formatting if unavailable.";
+		LlmPolishRuntimeTextBlock.Text = $"{llmPolishProviderOption.Name}: {value2} at {value}. Cloud providers receive the raw transcript and local draft. Speak falls back to local formatting if unavailable.";
 	}
 
 	private void UpdateShortcutUi()
@@ -8298,8 +8665,8 @@ public class MainWindow : Window, IComponentConnector
 			{
 				int value = (IsDarkTheme() ? 1 : 0);
 				int size = Marshal.SizeOf<int>();
-				DwmSetWindowAttribute(handle, 20, ref value, size);
-				DwmSetWindowAttribute(handle, 19, ref value, size);
+				_ = DwmSetWindowAttribute(handle, DwmUseImmersiveDarkMode, ref value, size);
+				_ = DwmSetWindowAttribute(handle, DwmUseImmersiveDarkModeBefore20H1, ref value, size);
 			}
 		}
 		catch (Exception exception)
@@ -8598,6 +8965,7 @@ public class MainWindow : Window, IComponentConnector
 		}
 	}
 
+#if LEGACY_BAML_CONNECTOR
 	[DebuggerNonUserCode]
 	[GeneratedCode("PresentationBuildTasks", "8.0.27.0")]
 	public void InitializeComponent()
@@ -9067,4 +9435,5 @@ public class MainWindow : Window, IComponentConnector
 			break;
 		}
 	}
+#endif
 }
