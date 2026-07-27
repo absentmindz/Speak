@@ -6,9 +6,12 @@ artifacts:
 - `Speak-<version>-win-x64-portable.zip` contains the self-contained .NET
   desktop application, the reviewed Python worker source files, the portable
   configuration, and license notices.
-- `Speak-<version>-Setup.exe` installs the same application for the current
-  Windows user. It does not require administrator rights. During upgrades it
-  also recognizes a model root recorded by the earlier machine-wide installer.
+- `Speak-<version>-Setup.exe` installs the same application under
+  `%ProgramFiles%\Speak` for all Windows users and requires administrator
+  approval. It preserves Speak 0.5's scope, path, application identity,
+  model-root registry fallback, and existing local `appsettings.json` so an
+  upgrade replaces the previous installation without discarding configured
+  runtime/model paths.
 - The separately installed offline model pack is planned but production is
   currently disabled. It will remain disabled until the repository contains
   an audited, immutable provenance manifest for every model file.

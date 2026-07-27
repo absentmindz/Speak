@@ -22,9 +22,12 @@ automatically.
 When `SPEAK_DATA_ROOT` is explicitly configured, Speak treats that directory
 as an isolation boundary and does not copy settings, history, recordings, or
 logs from its normal local application-data directory. The automatic legacy
-import applies only when the default data location is used. Speak stores a
-completion marker outside the clearable data-file families, so clearing
-history or recordings does not re-import old legacy copies on restart.
+import applies only when the default data location is used. On a Speak 0.5
+upgrade, it first imports the same model-adjacent or fixed `OpenClawData`
+location that the earlier executable selected, including settings, history,
+recordings, and logs. Speak stores a versioned completion marker outside the
+clearable data-file families, so clearing history or recordings does not
+re-import old legacy copies on restart.
 
 Clearing history requires confirmation. It erases the history database and
 its recovery copies, and deletes only the exact linked audio files located

@@ -150,10 +150,13 @@ bill of materials, and SHA-256 checksums for both. The SBOM is also embedded in
 the portable ZIP. A release is not an offline-AI bundle: model weights and
 Python/CUDA runtimes are separate.
 
-Maintainers can build the per-user Inno Setup installer and optional
+Maintainers can build the machine-wide Inno Setup installer and optional
 disk-spanned model pack with
-[`packaging/build-packages.ps1`](packaging/build-packages.ps1). The packaging
-process never copies the maintainer's virtual environment, settings, history,
+[`packaging/build-packages.ps1`](packaging/build-packages.ps1). The app
+installer requires administrator approval and preserves Speak 0.5's
+machine-wide identity and existing local runtime configuration so an upgrade
+replaces the earlier installation without discarding configured paths. The
+packaging process never copies the maintainer's virtual environment, settings, history,
 recordings, or API keys. See [packaging/README.md](packaging/README.md).
 
 Installers are not currently Authenticode-signed. Verify
