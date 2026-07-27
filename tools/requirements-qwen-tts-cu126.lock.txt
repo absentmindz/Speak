@@ -22,7 +22,7 @@ fastapi==0.139.0
 filelock==3.29.0
 flatbuffers==25.12.19
 fsspec==2026.4.0
-gradio==6.17.3
+gradio==6.20.0
 gradio_client==2.5.0
 groovy==0.1.2
 h11==0.16.0
