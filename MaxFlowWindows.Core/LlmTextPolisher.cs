@@ -52,7 +52,7 @@ public sealed class LlmTextPolisher : IDisposable
 			{
 				model = text2,
 				temperature = 0.2,
-				max_tokens = 900,
+				max_tokens = Math.Clamp(Math.Max(1200, rawTranscript.Length), 1200, 4000),
 				stream = false,
 				messages = new[]
 				{
@@ -75,10 +75,15 @@ public sealed class LlmTextPolisher : IDisposable
 			{
 				return LlmPolishResult.Fallback(locallyFormatted, $"LLM polish returned {response.StatusCode}: {ExtractError(body)}");
 			}
-			string text5 = ExtractMessageContent(body).Trim();
+			(string content, string finishReason) = ExtractMessage(body);
+			string text5 = content.Trim();
 			if (string.IsNullOrWhiteSpace(text5))
 			{
 				return LlmPolishResult.Fallback(locallyFormatted, "LLM polish returned empty text.");
+			}
+			if (finishReason.Equals("length", StringComparison.OrdinalIgnoreCase))
+			{
+				return LlmPolishResult.Fallback(locallyFormatted, "LLM polish hit its output limit, so Speak kept the complete local draft.");
 			}
 			string text6 = PolishResponseGuard.SafePolishedText(rawTranscript, locallyFormatted, text5);
 			if (!string.Equals(text6, text5.Trim(), StringComparison.Ordinal))
@@ -108,31 +113,39 @@ public sealed class LlmTextPolisher : IDisposable
 	private static Uri BuildChatCompletionsUri(string endpoint)
 	{
 		string text = endpoint.Trim().TrimEnd('/');
+		Uri uri;
 		if (text.EndsWith("/chat/completions", StringComparison.OrdinalIgnoreCase))
 		{
-			return new Uri(text);
+			uri = new Uri(text, UriKind.Absolute);
 		}
-		return new Uri(text + "/chat/completions");
+		else
+		{
+			uri = new Uri(text + "/chat/completions", UriKind.Absolute);
+		}
+		return EndpointSecurity.RequireHttpsOrLoopback(uri, "LLM polish");
 	}
 
-	private static string ExtractMessageContent(string body)
+	private static (string Content, string FinishReason) ExtractMessage(string body)
 	{
 		using JsonDocument jsonDocument = JsonDocument.Parse(body);
 		JsonElement property = jsonDocument.RootElement.GetProperty("choices");
 		if (property.GetArrayLength() == 0)
 		{
-			return "";
+			return ("", "");
 		}
 		JsonElement jsonElement = property[0];
+		string finishReason = jsonElement.TryGetProperty("finish_reason", out JsonElement finish)
+			? finish.GetString() ?? ""
+			: "";
 		if (jsonElement.TryGetProperty("message", out var value) && value.TryGetProperty("content", out var value2))
 		{
-			return value2.GetString() ?? "";
+			return (value2.GetString() ?? "", finishReason);
 		}
 		if (jsonElement.TryGetProperty("text", out var value3))
 		{
-			return value3.GetString() ?? "";
+			return (value3.GetString() ?? "", finishReason);
 		}
-		return "";
+		return ("", finishReason);
 	}
 
 	private static string ExtractError(string body)

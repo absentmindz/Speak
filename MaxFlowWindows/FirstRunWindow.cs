@@ -19,7 +19,7 @@ public sealed class FirstRunWindow : Window
     private static readonly (string Title, string Desc)[] Steps = new[]
     {
         ("Welcome to Speak",
-         "Your local-first dictation companion.\n\nSpeak runs entirely on your machine.\nNo data ever leaves your computer."),
+         "Your local-first dictation companion.\n\nLocal Whisper keeps transcription on this computer. Optional Cloud STT sends recorded audio to the provider you select, and optional cloud polish sends transcript text and the local draft. Both cloud features require your configuration."),
         ("Microphone Check",
          "Make sure your microphone is connected and selected.\nYou can change this anytime in Settings → Audio Input."),
         ("Your Shortcut Key",

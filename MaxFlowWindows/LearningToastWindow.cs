@@ -8,17 +8,19 @@ using System.Windows.Markup;
 
 namespace MaxFlowWindows;
 
-public class LearningToastWindow : Window, IComponentConnector
+public partial class LearningToastWindow : Window, IComponentConnector
 {
 	private const double RightOffset = 16.0;
 
 	private const double BottomOffset = 76.0;
 
+#if LEGACY_BAML_CONNECTOR
 	internal TextBlock TitleTextBlock;
 
 	internal TextBlock DetailTextBlock;
 
 	private bool _contentLoaded;
+#endif
 
 	public LearningToastWindow(string title, string detail)
 	{
@@ -41,6 +43,7 @@ public class LearningToastWindow : Window, IComponentConnector
 		PlaceNearTaskbar();
 	}
 
+#if LEGACY_BAML_CONNECTOR
 	[DebuggerNonUserCode]
 	[GeneratedCode("PresentationBuildTasks", "8.0.27.0")]
 	public void InitializeComponent()
@@ -74,4 +77,5 @@ public class LearningToastWindow : Window, IComponentConnector
 			break;
 		}
 	}
+#endif
 }

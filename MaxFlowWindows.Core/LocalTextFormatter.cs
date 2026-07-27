@@ -141,7 +141,11 @@ public sealed class LocalTextFormatter
 			orderby entry.Spoken.Trim().Length descending
 			select entry)
 		{
-			text2 = Regex.Replace(text2, BuildVocabularyPattern(item.Spoken), item.Written.Trim(), RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+			string replacement = item.Written.Trim();
+			// Use a match evaluator so user vocabulary containing '$' or
+			// backslashes is inserted literally instead of being interpreted as
+			// a regular-expression replacement expression.
+			text2 = Regex.Replace(text2, BuildVocabularyPattern(item.Spoken), _ => replacement, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 		}
 		return text2;
 	}
@@ -181,7 +185,16 @@ public sealed class LocalTextFormatter
 
 	private static string NormalizeWhitespace(string text)
 	{
-		return Regex.Replace(Regex.Replace(Regex.Replace(Regex.Replace(Regex.Replace(Regex.Replace(text.Replace("\r\n", "\n").Replace('\r', '\n'), "[ \\t]+", " "), " *\\n *", "\n"), "\\n{3,}", "\n\n"), "\\s+([,.!?;:])", "$1"), "([,.!?;:])(?=\\S)", "$1 "), "-\\s+", "- ").Trim();
+		string normalized = text.Replace("\r\n", "\n").Replace('\r', '\n');
+		normalized = Regex.Replace(normalized, "[ \\t]+", " ");
+		normalized = Regex.Replace(normalized, " *\\n *", "\n");
+		normalized = Regex.Replace(normalized, "\\n{3,}", "\n\n");
+		normalized = Regex.Replace(normalized, "\\s+([,.!?;:])", "$1");
+		// Do not blindly insert spaces after punctuation. That corrupts URLs,
+		// drive-qualified paths, email addresses, version numbers, and code
+		// (for example https://, C:\Temp, and 1.2.3).
+		normalized = Regex.Replace(normalized, "-\\s+", "- ");
+		return normalized.Trim();
 	}
 
 	private static string RemoveFillers(string text)
@@ -266,12 +279,14 @@ public sealed class LocalTextFormatter
 		}
 		char c = num;
 		text = text.TrimEnd('.', '!', '?', ' ');
-		text = text.ToLowerInvariant();
-		text = Regex.Replace(text, "\\bi\\b", "I", RegexOptions.CultureInvariant | RegexOptions.Compiled);
-		text = Regex.Replace(text, "\\bi'm\\b", "I'm", RegexOptions.CultureInvariant | RegexOptions.Compiled);
-		text = Regex.Replace(text, "\\bi've\\b", "I've", RegexOptions.CultureInvariant | RegexOptions.Compiled);
-		text = Regex.Replace(text, "\\bi'll\\b", "I'll", RegexOptions.CultureInvariant | RegexOptions.Compiled);
-		text = Regex.Replace(text, "\\bi'd\\b", "I'd", RegexOptions.CultureInvariant | RegexOptions.Compiled);
+		// Preserve intentional casing in acronyms, product names, paths, URLs,
+		// and code. The previous whole-sentence ToLowerInvariant call corrupted
+		// values such as API, PowerShell, C:\Temp, and case-sensitive tokens.
+		text = Regex.Replace(text, "\\bi\\b", _ => "I", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+		text = Regex.Replace(text, "\\bi'm\\b", _ => "I'm", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+		text = Regex.Replace(text, "\\bi've\\b", _ => "I've", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+		text = Regex.Replace(text, "\\bi'll\\b", _ => "I'll", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+		text = Regex.Replace(text, "\\bi'd\\b", _ => "I'd", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 		char reference;
 		for (int i = 0; i < text.Length; i++)
 		{

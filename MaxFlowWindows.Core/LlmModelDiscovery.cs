@@ -125,9 +125,9 @@ public sealed class LlmModelDiscovery : IDisposable
 		}
 		if (text.EndsWith("/models", StringComparison.OrdinalIgnoreCase))
 		{
-			return new Uri(text);
+			return EndpointSecurity.RequireHttpsOrLoopback(new Uri(text, UriKind.Absolute), "Model discovery");
 		}
-		return new Uri(text + "/models");
+		return EndpointSecurity.RequireHttpsOrLoopback(new Uri(text + "/models", UriKind.Absolute), "Model discovery");
 	}
 
 	private static IReadOnlyList<string> ExtractModelIds(string body)

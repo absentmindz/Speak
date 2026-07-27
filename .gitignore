@@ -7,6 +7,7 @@
 [Oo]bj/
 publish/
 publish-output/
+TestResults/
 *.user
 *.suo
 *.userprefs
@@ -39,7 +40,12 @@ appsettings.json.bak*
 # ── Python TTS / Whisper virtual environments ────────
 .qwen-tts-env/
 .whisper-env/
+.env
+.env.*
+!.env.example
 *.env/
+.venv/
+venv/
 __pycache__/
 *.pyc
 *.pyo
@@ -58,6 +64,8 @@ __pycache__/
 cache/
 tts/
 voices/
+output/
+tmp/
 *.wav
 *.mp3
 *.ogg
@@ -68,6 +76,7 @@ voices/
 logs/
 crashes/
 *.log
+*.dmp
 
 # ── Packaging build artifacts ────────────────────────
 packaging/stage/
@@ -90,11 +99,10 @@ Latest/
 # ── Deprecated files ─────────────────────────────────
 *.deprecated
 
+# ── Generated WPF intermediate outputs ──────────────
 *.g.i.cs
 *.resources.resx
-!*.baml
-
-# (keep .baml source files that are tracked resources)
+*.baml
 
 # ── OS files ─────────────────────────────────────────
 .DS_Store
@@ -120,3 +128,11 @@ artifacts/
 
 # ── Agent workspace ──────────────────────────────────
 .agents/
+.secrets/
+secrets/
+*.usersecrets
+*.pfx
+*.p12
+*.pem
+*.key
+*.snk

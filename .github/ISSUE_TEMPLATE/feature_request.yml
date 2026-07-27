@@ -1,0 +1,33 @@
+name: Feature request
+description: Suggest a focused improvement
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: textarea
+    attributes:
+      label: Problem
+      description: What user problem should Speak solve?
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Proposed behavior
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Alternatives
+  - type: dropdown
+    attributes:
+      label: Privacy impact
+      options:
+        - No new data collection or transfer
+        - Changes local data access or retention
+        - Sends data to an external service
+        - Unsure
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Additional context
+      description: Use synthetic data and sanitized screenshots only.

@@ -13,6 +13,8 @@ public sealed class MaxFlowDataStore
 	private const int MaxBackupCopies = 3;
 	private const int CurrentSchemaVersion = 1;
 
+	private readonly object _saveSync = new object();
+
 	private readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions
 	{
 		WriteIndented = true,
@@ -54,14 +56,15 @@ public sealed class MaxFlowDataStore
 		Save(SettingsPath, settings);
 	}
 
+	public void PurgeSettingsRecoveryCopies()
+	{
+		lock (_saveSync)
+			DeleteRecoveryCopies(SettingsPath);
+	}
+
 	public List<VocabularyEntry> LoadVocabulary()
 	{
-		List<VocabularyEntry> list = Load(VocabularyPath, VocabularyEntry.Defaults.ToList());
-		if (list.Count != 0)
-		{
-			return list;
-		}
-		return VocabularyEntry.Defaults.ToList();
+		return Load(VocabularyPath, VocabularyEntry.Defaults.ToList());
 	}
 
 	public void SaveVocabulary(IEnumerable<VocabularyEntry> entries)
@@ -89,47 +92,86 @@ public sealed class MaxFlowDataStore
 		return SaveAsync(HistoryPath, cards.ToList());
 	}
 
+	public void ClearHistoryData(IEnumerable<string>? audioPaths = null)
+	{
+		lock (_saveSync)
+		{
+			DeleteDataFileFamily(HistoryPath);
+			DeleteHistoryAudio(audioPaths ?? Array.Empty<string>());
+		}
+	}
+
 	private T Load<T>(string path, T fallback)
 	{
-		try
+		Exception? firstFailure = null;
+		foreach (string candidate in CandidatePaths(path))
 		{
-			if (!File.Exists(path))
+			if (!File.Exists(candidate))
 			{
-				return fallback;
+				continue;
 			}
-			string json = File.ReadAllText(path, Encoding.UTF8);
-			T val = JsonSerializer.Deserialize<T>(json, _jsonOptions);
-			return (T)((val != null) ? ((object)val) : ((object)fallback));
+			try
+			{
+				string json = File.ReadAllText(candidate, Encoding.UTF8);
+				T? value = JsonSerializer.Deserialize<T>(json, _jsonOptions);
+				if (value != null)
+				{
+					if (!string.Equals(candidate, path, StringComparison.OrdinalIgnoreCase))
+						AppLog.Warn($"Recovered {Path.GetFileName(path)} from {Path.GetFileName(candidate)}.");
+					return value;
+				}
+			}
+			catch (Exception exception)
+			{
+				firstFailure ??= exception;
+			}
 		}
-		catch (Exception exception)
+
+		if (firstFailure != null)
+			AppLog.Warn("Could not load local data file or any backup: " + Path.GetFileName(path), firstFailure);
+		return fallback;
+	}
+
+	private void Save<T>(string path, T value)
+	{
+		lock (_saveSync)
 		{
-			string backupPath = path + ".bak1";
-			if (File.Exists(backupPath))
+			Directory.CreateDirectory(Root);
+			string tempPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+			try
+			{
+				string contents = JsonSerializer.Serialize(value, _jsonOptions);
+				using (FileStream stream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
+				using (StreamWriter writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)))
+				{
+					writer.Write(contents);
+					writer.Flush();
+					stream.Flush(flushToDisk: true);
+				}
+
+				RotateOlderBackups(path);
+				if (File.Exists(path))
+				{
+					File.Replace(tempPath, path, path + ".bak1", ignoreMetadataErrors: true);
+				}
+				else
+				{
+					File.Move(tempPath, path);
+				}
+				WriteSchemaFile(path);
+			}
+			finally
 			{
 				try
 				{
-					AppLog.Warn($"Could not load {Path.GetFileName(path)}, trying backup...", exception);
-					return Load<T>(backupPath, fallback);
+					if (File.Exists(tempPath))
+						File.Delete(tempPath);
 				}
 				catch
 				{
 				}
 			}
-			AppLog.Warn("Could not load local data file: " + Path.GetFileName(path), exception);
-			return fallback;
 		}
-	}
-
-	private void Save<T>(string path, T value)
-	{
-		Directory.CreateDirectory(Root);
-		RotateBackups(path);
-		string text = path + ".tmp";
-		string contents = JsonSerializer.Serialize(value, _jsonOptions);
-		File.WriteAllText(text, contents, Encoding.UTF8);
-		File.Copy(text, path, overwrite: true);
-		File.Delete(text);
-		WriteSchemaFile(path);
 	}
 
 	private void WriteSchemaFile(string dataPath)
@@ -144,24 +186,30 @@ public sealed class MaxFlowDataStore
 		}
 	}
 
-	private void RotateBackups(string path)
+	private static IEnumerable<string> CandidatePaths(string path)
 	{
-		for (int i = MaxBackupCopies - 1; i >= 1; i--)
+		yield return path;
+		for (int i = 1; i <= MaxBackupCopies; i++)
+			yield return path + ".bak" + i;
+	}
+
+	private static void RotateOlderBackups(string path)
+	{
+		for (int i = MaxBackupCopies; i >= 2; i--)
 		{
-			string older = path + ".bak" + i;
-			string newer = path + ".bak" + (i - 1);
-			if (File.Exists(older))
+			string destination = path + ".bak" + i;
+			string source = path + ".bak" + (i - 1);
+			try
 			{
-				try { File.Delete(older); } catch { }
+				if (File.Exists(destination))
+					File.Delete(destination);
+				if (File.Exists(source))
+					File.Move(source, destination);
 			}
-			if (File.Exists(newer))
+			catch (Exception exception)
 			{
-				try { File.Copy(newer, older, overwrite: true); } catch { }
+				AppLog.Warn($"Could not rotate backup {Path.GetFileName(source)}.", exception);
 			}
-		}
-		if (File.Exists(path))
-		{
-			try { File.Copy(path, path + ".bak1", overwrite: true); } catch { }
 		}
 	}
 
@@ -171,5 +219,145 @@ public sealed class MaxFlowDataStore
 		{
 			Save(path, value);
 		});
+	}
+
+	private static void DeleteDataFileFamily(string path)
+	{
+		var candidates = new List<string>
+		{
+			path,
+			path + ".schema",
+			path + ".tmp"
+		};
+		for (int i = 1; i <= MaxBackupCopies; i++)
+			candidates.Add(path + ".bak" + i);
+
+		string? directory = Path.GetDirectoryName(path);
+		if (!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory))
+			candidates.AddRange(Directory.EnumerateFiles(directory, Path.GetFileName(path) + ".*.tmp", SearchOption.TopDirectoryOnly));
+
+		foreach (string candidate in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
+		{
+			try
+			{
+				if (File.Exists(candidate))
+					File.Delete(candidate);
+			}
+			catch (Exception exception)
+			{
+				AppLog.Warn("Could not erase " + Path.GetFileName(candidate) + ".", exception);
+			}
+		}
+	}
+
+	private static void DeleteRecoveryCopies(string path)
+	{
+		var candidates = new List<string>
+		{
+			path + ".tmp"
+		};
+		for (int i = 1; i <= MaxBackupCopies; i++)
+			candidates.Add(path + ".bak" + i);
+
+		string? directory = Path.GetDirectoryName(path);
+		if (!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory))
+			candidates.AddRange(Directory.EnumerateFiles(
+				directory,
+				Path.GetFileName(path) + ".*.tmp",
+				SearchOption.TopDirectoryOnly));
+
+		foreach (string candidate in candidates.Distinct(
+			StringComparer.OrdinalIgnoreCase))
+		{
+			try
+			{
+				if (File.Exists(candidate))
+					File.Delete(candidate);
+			}
+			catch (Exception exception)
+			{
+				AppLog.Warn(
+					"Could not erase settings recovery copy " +
+					Path.GetFileName(candidate) + ".",
+					exception);
+			}
+		}
+	}
+
+	private void DeleteHistoryAudio(IEnumerable<string> audioPaths)
+	{
+		string dataRoot = Path.GetFullPath(Root);
+		string recordingsRoot = Path.GetFullPath(Path.Combine(Root, "recordings"));
+		string archiveRoot = Path.GetFullPath(Path.Combine(Root, "recordings-archive"));
+
+		foreach (string audioPath in audioPaths.Where(path => !string.IsNullOrWhiteSpace(path)))
+		{
+			try
+			{
+				string fullPath = Path.GetFullPath(audioPath);
+				if (!IsSafeHistoryAudioPath(fullPath, dataRoot, recordingsRoot) &&
+					!IsSafeHistoryAudioPath(fullPath, dataRoot, archiveRoot))
+					continue;
+
+				if (File.Exists(fullPath))
+					File.Delete(fullPath);
+			}
+			catch (Exception exception)
+			{
+				AppLog.Warn("Could not erase history audio reference.", exception);
+			}
+		}
+	}
+
+	private static bool IsSafeHistoryAudioPath(
+		string fullPath,
+		string dataRoot,
+		string allowedRoot)
+	{
+		string canonicalDataRoot = Path.GetFullPath(dataRoot)
+			.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+		string canonicalRoot = Path.GetFullPath(allowedRoot)
+			.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+		string rootPrefix = canonicalRoot + Path.DirectorySeparatorChar;
+		if (!fullPath.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase))
+			return false;
+
+		string relative = Path.GetRelativePath(canonicalRoot, fullPath);
+		if (Path.IsPathRooted(relative) ||
+			relative.Equals("..", StringComparison.Ordinal) ||
+			relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal) ||
+			relative.StartsWith(".." + Path.AltDirectorySeparatorChar, StringComparison.Ordinal))
+			return false;
+
+		string current = canonicalDataRoot;
+		if (!IsExistingPathFreeOfReparsePoint(current))
+			return false;
+
+		string pathFromDataRoot = Path.GetRelativePath(
+			canonicalDataRoot,
+			fullPath);
+		foreach (string component in pathFromDataRoot.Split(
+			new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar },
+			StringSplitOptions.RemoveEmptyEntries))
+		{
+			current = Path.Combine(current, component);
+			if (!IsExistingPathFreeOfReparsePoint(current))
+				return false;
+		}
+		return true;
+	}
+
+	private static bool IsExistingPathFreeOfReparsePoint(string path)
+	{
+		if (!File.Exists(path) && !Directory.Exists(path))
+			return true;
+		try
+		{
+			return (File.GetAttributes(path) & FileAttributes.ReparsePoint) == 0;
+		}
+		catch
+		{
+			return false;
+		}
 	}
 }

@@ -17,9 +17,6 @@ public sealed class ProcessJob : IDisposable
     private static extern bool AssignProcessToJobObject(nint job, nint process);
 
     [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern nint GetCurrentProcess();
-
-    [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool CloseHandle(nint handle);
 
@@ -92,12 +89,10 @@ public sealed class ProcessJob : IDisposable
             throw new Win32Exception(Marshal.GetLastWin32Error(), "Failed to set job object limits.");
         }
 
-        nint currentProcess = GetCurrentProcess();
-        if (!AssignProcessToJobObject(_jobHandle, currentProcess))
-        {
-            CloseHandle(_jobHandle);
-            _jobHandle = nint.Zero;
-        }
+        // Do not assign the Speak process itself. Closing a job configured with
+        // KILL_ON_JOB_CLOSE terminates every assigned process, so assigning the
+        // parent made normal shutdown race with data flushing and cleanup.
+        // Worker processes are added explicitly through AddProcess instead.
     }
 
     public bool AddProcess(Process process)

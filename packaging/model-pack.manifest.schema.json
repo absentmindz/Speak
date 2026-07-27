@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/absentmindz/Speak/blob/main/packaging/model-pack.manifest.schema.json",
+  "title": "Speak offline model-pack provenance manifest",
+  "description": "A model pack may be built only from an audited manifest that validates against this schema and whose file list exactly matches the source tree.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "packVersion",
+    "sources"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "packVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/source"
+      }
+    }
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "repository",
+        "revision",
+        "sourceUrl",
+        "license",
+        "files"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]+$"
+        },
+        "repository": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+        },
+        "revision": {
+          "description": "Immutable upstream commit or model revision, never a branch or floating tag.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{40,64}$"
+        },
+        "sourceUrl": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        },
+        "license": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "spdxId",
+            "sourceUrl",
+            "localFile"
+          ],
+          "properties": {
+            "spdxId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sourceUrl": {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^https://"
+            },
+            "localFile": {
+              "type": "string",
+              "pattern": "^licenses/[A-Za-z0-9._-]+$"
+            }
+          }
+        },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "relativePath",
+              "sha256",
+              "sizeBytes"
+            ],
+            "properties": {
+              "relativePath": {
+                "type": "string",
+                "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+$"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "sizeBytes": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

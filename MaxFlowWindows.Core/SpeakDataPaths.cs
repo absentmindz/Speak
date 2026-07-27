@@ -6,6 +6,9 @@ namespace MaxFlowWindows.Core;
 
 public static class SpeakDataPaths
 {
+	internal const string LegacyMigrationMarkerFileName = ".legacy-import-complete-v2";
+	internal const string PreviousLegacyMigrationMarkerFileName = ".legacy-import-complete-v1";
+
 	private static string? _cachedDataRoot;
 	private static readonly object _lock = new();
 
@@ -25,30 +28,6 @@ public static class SpeakDataPaths
 				return _cachedDataRoot;
 			}
 
-			try
-			{
-				var appConfig = AppConfig.Current;
-				if (!string.IsNullOrWhiteSpace(appConfig.Paths.ModelsRoot))
-				{
-					string legacyRoot = Path.GetFullPath(Path.Combine(appConfig.Paths.ModelsRoot, "..", "OpenClawData", "Speak"));
-					if (Directory.Exists(legacyRoot))
-					{
-						_cachedDataRoot = legacyRoot;
-						return _cachedDataRoot;
-					}
-				}
-			}
-			catch
-			{
-			}
-
-			string existingDDriveRoot = "D:\\OpenClawData\\Speak";
-			if (Directory.Exists(existingDDriveRoot))
-			{
-				_cachedDataRoot = existingDDriveRoot;
-				return _cachedDataRoot;
-			}
-
 			_cachedDataRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Speak");
 			return _cachedDataRoot;
 		}
@@ -64,39 +43,244 @@ public static class SpeakDataPaths
 
 	public static void CopyLegacyLocalDataIfNeeded(string destinationRoot)
 	{
+		CopyLegacyLocalDataIfNeeded(
+			destinationRoot,
+			FormerOpenClawDataRoots(),
+			FallbackLocalRoots(),
+			!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("SPEAK_DATA_ROOT")));
+	}
+
+	internal static void CopyLegacyLocalDataIfNeeded(
+		string destinationRoot,
+		IEnumerable<string> formerOpenClawRoots,
+		IEnumerable<string> fallbackLocalRoots,
+		bool explicitDataRoot)
+	{
 		Directory.CreateDirectory(destinationRoot);
-		foreach (string item in LegacyLocalRoots())
+
+		// An explicit data root is an isolation boundary. Importing files from the
+		// user's normal LocalAppData directory into that location would be
+		// surprising and can copy private history, recordings, and logs into a
+		// portable, test, or shared directory without consent.
+		if (explicitDataRoot ||
+			File.Exists(Path.Combine(destinationRoot, LegacyMigrationMarkerFileName)))
 		{
-			if (Directory.Exists(item) && !SamePath(item, destinationRoot))
+			return;
+		}
+
+		// The previous completion marker is still authoritative. Converting it to
+		// the current marker without importing anything prevents data deliberately
+		// cleared after that migration from reappearing.
+		if (File.Exists(Path.Combine(
+			destinationRoot,
+			PreviousLegacyMigrationMarkerFileName)))
+		{
+			WriteLegacyMigrationMarker(destinationRoot);
+			return;
+		}
+
+		// Speak 0.5 selected the first existing OpenClawData root before falling
+		// back to LocalAppData. Import exactly that source even when a newer
+		// destination already has partial data, otherwise an upgrade can hide the
+		// settings/history the previous executable actually displayed.
+		foreach (string root in formerOpenClawRoots)
+		{
+			if (Directory.Exists(root) && !SamePath(root, destinationRoot))
 			{
-				string[] array = new string[4] { "settings.json", "vocabulary.json", "history.json", "keyboard-bridge.json" };
-				foreach (string path in array)
-				{
-					CopyFileIfMissing(Path.Combine(item, path), Path.Combine(destinationRoot, path));
-				}
-				CopyDirectoryFilesIfMissing(Path.Combine(item, "recordings"), Path.Combine(destinationRoot, "recordings"));
-				CopyDirectoryFilesIfMissing(Path.Combine(item, "logs"), Path.Combine(destinationRoot, "logs"));
+				CopyLegacyRoot(root, destinationRoot, overwriteExisting: true);
+				WriteLegacyMigrationMarker(destinationRoot);
+				return;
+			}
+		}
+
+		// With no former OpenClawData root, existing destination data means this
+		// installation has already crossed the legacy boundary. Record completion
+		// without refilling files that the user may have deliberately cleared.
+		if (HasCurrentSpeakData(destinationRoot))
+		{
+			WriteLegacyMigrationMarker(destinationRoot);
+			return;
+		}
+
+		foreach (string root in fallbackLocalRoots)
+		{
+			if (Directory.Exists(root) && !SamePath(root, destinationRoot))
+			{
+				CopyLegacyRoot(root, destinationRoot, overwriteExisting: false);
+			}
+		}
+
+		WriteLegacyMigrationMarker(destinationRoot);
+	}
+
+	internal static bool ShouldMigrateLegacyLocalData(string destinationRoot)
+	{
+		return string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("SPEAK_DATA_ROOT"))
+			&& !File.Exists(Path.Combine(destinationRoot, LegacyMigrationMarkerFileName))
+			&& !File.Exists(Path.Combine(
+				destinationRoot,
+				PreviousLegacyMigrationMarkerFileName));
+	}
+
+	private static bool HasCurrentSpeakData(string root)
+	{
+		string[] currentFiles = new string[5]
+		{
+			".onboarded",
+			"settings.json",
+			"vocabulary.json",
+			"history.json",
+			"keyboard-bridge.json"
+		};
+		foreach (string fileName in currentFiles)
+		{
+			if (File.Exists(Path.Combine(root, fileName)))
+			{
+				return true;
+			}
+		}
+
+		return Directory.Exists(Path.Combine(root, "recordings"))
+			|| Directory.Exists(Path.Combine(root, "logs"));
+	}
+
+	private static void WriteLegacyMigrationMarker(string destinationRoot)
+	{
+		// Keep the marker outside every data-file family that users can clear.
+		// Without it, clearing history could resurrect private legacy data on the
+		// next launch because the importer copies files only when they are missing.
+		File.WriteAllText(
+			Path.Combine(destinationRoot, LegacyMigrationMarkerFileName),
+			"Legacy data import completed.\n");
+	}
+
+	private static IReadOnlyList<string> FormerOpenClawDataRoots()
+	{
+		string modelsRoot = "";
+		try
+		{
+			modelsRoot = AppConfig.Current.Paths.ModelsRoot;
+		}
+		catch
+		{
+			// A malformed optional configuration must not prevent the fixed legacy
+			// root from being considered.
+		}
+
+		return BuildFormerOpenClawDataRoots(modelsRoot, @"D:\OpenClawData\Speak");
+	}
+
+	private static IReadOnlyList<string> FallbackLocalRoots()
+	{
+		return BuildFallbackLocalRoots(
+			Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
+	}
+
+	internal static IReadOnlyList<string> BuildFormerOpenClawDataRoots(
+		string modelsRoot,
+		string fixedDDriveRoot)
+	{
+		var roots = new List<string>();
+		var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+		if (!string.IsNullOrWhiteSpace(modelsRoot))
+		{
+			AddLegacyRoot(
+				roots,
+				seen,
+				Path.Combine(modelsRoot, "..", "OpenClawData", "Speak"));
+		}
+
+		AddLegacyRoot(roots, seen, fixedDDriveRoot);
+		return roots;
+	}
+
+	internal static IReadOnlyList<string> BuildFallbackLocalRoots(string localAppData)
+	{
+		var roots = new List<string>();
+		var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		AddLegacyRoot(roots, seen, Path.Combine(localAppData, "Speak"));
+		AddLegacyRoot(roots, seen, Path.Combine(localAppData, "MaxFlowWindows"));
+		return roots;
+	}
+
+	private static void AddLegacyRoot(
+		List<string> roots,
+		HashSet<string> seen,
+		string candidate)
+	{
+		if (string.IsNullOrWhiteSpace(candidate))
+		{
+			return;
+		}
+
+		string fullPath = Path.GetFullPath(candidate);
+		if (seen.Add(fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)))
+		{
+			roots.Add(fullPath);
+		}
+	}
+
+	private static void CopyLegacyRoot(
+		string sourceRoot,
+		string destinationRoot,
+		bool overwriteExisting)
+	{
+		string[] fileNames = new string[4]
+		{
+			"settings.json",
+			"vocabulary.json",
+			"history.json",
+			"keyboard-bridge.json"
+		};
+		foreach (string fileName in fileNames)
+		{
+			CopyFile(
+				Path.Combine(sourceRoot, fileName),
+				Path.Combine(destinationRoot, fileName),
+				overwriteExisting);
+		}
+		CopyDirectoryFiles(
+			Path.Combine(sourceRoot, "recordings"),
+			Path.Combine(destinationRoot, "recordings"),
+			overwriteExisting);
+		CopyDirectoryFiles(
+			Path.Combine(sourceRoot, "logs"),
+			Path.Combine(destinationRoot, "logs"),
+			overwriteExisting);
+	}
+
+	private static void CopyFile(
+		string source,
+		string destination,
+		bool overwriteExisting)
+	{
+		if (!File.Exists(source) || (!overwriteExisting && File.Exists(destination)))
+		{
+			return;
+		}
+
+		Directory.CreateDirectory(Path.GetDirectoryName(destination));
+		string temporary = destination + ".speak-migration-" +
+			Guid.NewGuid().ToString("N") + ".tmp";
+		try
+		{
+			File.Copy(source, temporary, overwrite: false);
+			File.Move(temporary, destination, overwriteExisting);
+		}
+		finally
+		{
+			if (File.Exists(temporary))
+			{
+				File.Delete(temporary);
 			}
 		}
 	}
 
-	private static IEnumerable<string> LegacyLocalRoots()
-	{
-		string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-		yield return Path.Combine(localAppData, "Speak");
-		yield return Path.Combine(localAppData, "MaxFlowWindows");
-	}
-
-	private static void CopyFileIfMissing(string source, string destination)
-	{
-		if (File.Exists(source) && !File.Exists(destination))
-		{
-			Directory.CreateDirectory(Path.GetDirectoryName(destination));
-			File.Copy(source, destination);
-		}
-	}
-
-	private static void CopyDirectoryFilesIfMissing(string sourceRoot, string destinationRoot)
+	private static void CopyDirectoryFiles(
+		string sourceRoot,
+		string destinationRoot,
+		bool overwriteExisting)
 	{
 		if (!Directory.Exists(sourceRoot))
 		{
@@ -106,7 +290,7 @@ public static class SpeakDataPaths
 		{
 			string relativePath = Path.GetRelativePath(sourceRoot, item);
 			string destination = Path.Combine(destinationRoot, relativePath);
-			CopyFileIfMissing(item, destination);
+			CopyFile(item, destination, overwriteExisting);
 		}
 	}
 

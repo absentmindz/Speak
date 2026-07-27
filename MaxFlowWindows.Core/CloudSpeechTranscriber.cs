@@ -78,11 +78,16 @@ public sealed class CloudSpeechTranscriber : IDisposable
 	private static Uri BuildTranscriptionsUri(string endpoint)
 	{
 		string text = endpoint.Trim().TrimEnd('/');
+		Uri uri;
 		if (text.EndsWith("/audio/transcriptions", StringComparison.OrdinalIgnoreCase))
 		{
-			return new Uri(text);
+			uri = new Uri(text, UriKind.Absolute);
 		}
-		return new Uri(text + "/audio/transcriptions");
+		else
+		{
+			uri = new Uri(text + "/audio/transcriptions", UriKind.Absolute);
+		}
+		return EndpointSecurity.RequireHttpsOrLoopback(uri, "Cloud STT");
 	}
 
 	private static string ContentTypeForAudio(string audioPath)

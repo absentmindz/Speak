@@ -1,0 +1,66 @@
+name: Bug report
+description: Report a reproducible problem in Speak
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Remove private transcripts, audio, API keys, usernames, and local paths.
+        Report security vulnerabilities through GitHub's private advisory form.
+  - type: checkboxes
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed secrets and personal data from this report and its attachments.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true
+  - type: input
+    attributes:
+      label: Speak version or commit
+      placeholder: 0.5.1 or a commit SHA
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 24H2, build 26100
+    validations:
+      required: true
+  - type: dropdown
+    attributes:
+      label: Feature area
+      options:
+        - Dictation / microphone
+        - Local Whisper
+        - Cloud STT
+        - Text-to-speech
+        - LLM polish
+        - History / settings
+        - REST integration
+        - Installation / packaging
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Steps to reproduce
+      description: Use synthetic text or audio.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Sanitized diagnostics
+      description: Paste only the minimal redacted log excerpt.
+      render: text

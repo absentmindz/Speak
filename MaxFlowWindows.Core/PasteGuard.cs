@@ -2,81 +2,101 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text;
+using System.Windows.Automation;
 
 namespace MaxFlowWindows.Core;
 
 public static class PasteGuard
 {
-    private static readonly HashSet<string> SensitiveProcesses = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    {
-        "cmd", "powershell", "pwsh", "wsl", "windowsterminal",
-        "mstsc", "remote",
-        "keepass", "keepassxc", "1password", "bitwarden",
-        "password", "login"
-    };
+	private static readonly HashSet<string> SensitiveProcesses = new(StringComparer.OrdinalIgnoreCase)
+	{
+		"cmd", "powershell", "pwsh", "wsl", "windowsterminal",
+		"mstsc", "keepass", "keepassxc", "1password", "bitwarden"
+	};
 
-    private static readonly HashSet<string> SensitiveWindowClasses = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    {
-        "Edit", "RichEdit20W", "RichEdit50W",
-    };
+	private static readonly string[] SensitiveNameFragments =
+	{
+		"terminal", "console", "password", "credential", "login", "remote"
+	};
 
-    [DllImport("user32.dll")]
-    private static extern nint GetForegroundWindow();
+	[DllImport("user32.dll")]
+	private static extern nint GetForegroundWindow();
 
-    [DllImport("user32.dll")]
-    private static extern uint GetWindowThreadProcessId(nint hWnd, out uint processId);
+	[DllImport("user32.dll")]
+	private static extern uint GetWindowThreadProcessId(nint hWnd, out uint processId);
 
-    [DllImport("user32.dll", CharSet = CharSet.Auto)]
-    private static extern int GetClassName(nint hWnd, System.Text.StringBuilder className, int maxCount);
+	[DllImport("user32.dll", CharSet = CharSet.Unicode)]
+	private static extern int GetClassName(nint hWnd, StringBuilder className, int maxCount);
 
-    public static bool IsSafeToPaste()
-    {
-        try
-        {
-            nint foreground = GetForegroundWindow();
-            if (foreground == nint.Zero)
-                return true;
+	public static bool IsSafeToPaste(nint targetWindow, bool requireForeground = false)
+	{
+		// Paste is an externally visible action. If the target cannot be
+		// positively identified, fail closed and leave the text on the clipboard.
+		if (targetWindow == nint.Zero)
+			return false;
 
-            if (GetWindowThreadProcessId(foreground, out uint pid) == 0)
-                return true;
+		try
+		{
+			if (requireForeground && GetForegroundWindow() != targetWindow)
+				return false;
 
-            using var process = Process.GetProcessById((int)pid);
-            string name = process.ProcessName;
+			if (GetWindowThreadProcessId(targetWindow, out uint pid) == 0 || pid == 0)
+				return false;
 
-            if (SensitiveProcesses.Contains(name))
-                return false;
+			using Process process = Process.GetProcessById((int)pid);
+			string name = process.ProcessName;
+			if (SensitiveProcesses.Contains(name) || ContainsSensitiveFragment(name))
+				return false;
 
-            var sb = new System.Text.StringBuilder(256);
-            if (GetClassName(foreground, sb, sb.Capacity) > 0)
-            {
-                string cls = sb.ToString();
-                if (cls.Contains("Console", StringComparison.OrdinalIgnoreCase) ||
-                    cls.Contains("Terminal", StringComparison.OrdinalIgnoreCase) ||
-                    cls.Contains("Password", StringComparison.OrdinalIgnoreCase))
-                    return false;
-            }
+			var className = new StringBuilder(256);
+			if (GetClassName(targetWindow, className, className.Capacity) <= 0)
+				return false;
+			if (ContainsSensitiveFragment(className.ToString()))
+				return false;
 
-            return true;
-        }
-        catch
-        {
-            return true;
-        }
-    }
+			if (requireForeground)
+			{
+				AutomationElement? focused = AutomationElement.FocusedElement;
+				if (focused == null)
+					return false;
 
-    public static string DescribeRisks(nint foregroundWindow)
-    {
-        try
-        {
-            if (GetWindowThreadProcessId(foregroundWindow, out uint pid) == 0)
-                return "";
+				AutomationElement.AutomationElementInformation current = focused.Current;
+				if (current.ProcessId != (int)pid || current.IsPassword)
+					return false;
+			}
 
-            using var process = Process.GetProcessById((int)pid);
-            return $"Pasting into {process.ProcessName} — this may expose sensitive input.";
-        }
-        catch
-        {
-            return "";
-        }
-    }
+			return true;
+		}
+		catch
+		{
+			return false;
+		}
+	}
+
+	public static string DescribeRisks(nint targetWindow)
+	{
+		try
+		{
+			if (GetWindowThreadProcessId(targetWindow, out uint pid) == 0 || pid == 0)
+				return "The paste target could not be verified.";
+
+			using Process process = Process.GetProcessById((int)pid);
+			return $"Pasting into {process.ProcessName} may expose sensitive input.";
+		}
+		catch
+		{
+			return "The paste target could not be verified.";
+		}
+	}
+
+	private static bool ContainsSensitiveFragment(string value)
+	{
+		foreach (string fragment in SensitiveNameFragments)
+		{
+			if (value.Contains(fragment, StringComparison.OrdinalIgnoreCase))
+				return true;
+		}
+		return false;
+	}
 }
