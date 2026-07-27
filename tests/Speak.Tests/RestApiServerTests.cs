@@ -10,7 +10,7 @@ namespace Speak.Tests;
 
 public sealed class RestApiServerTests
 {
-    private const string Token = "0123456789abcdef0123456789abcdef";
+    private static readonly string Token = new('t', 32);
 
     [Fact]
     public async Task RouteRequiresBearerToken()
