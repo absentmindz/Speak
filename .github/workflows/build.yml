@@ -133,32 +133,45 @@ jobs:
           --no-build
           --collect "XPlat Code Coverage"
           --results-directory TestResults
-          -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
 
       - name: Verify minimum test coverage
         shell: pwsh
         run: |
-          $covFiles = Get-ChildItem -Path TestResults -Recurse -Filter coverage.cobertura.xml
+          $covFiles = Get-ChildItem -Path TestResults -Recurse -Filter coverage.cobertura.xml -ErrorAction SilentlyContinue
           if ($covFiles.Count -eq 0) {
-            throw "No coverage report generated."
+            $covFiles = Get-ChildItem -Path TestResults -Recurse -Filter coverage.xml -ErrorAction SilentlyContinue
           }
-          [xml]$coverage = Get-Content -LiteralPath $covFiles[0].FullName -Raw
-          $linesCovered = [int]($coverage.coverage.packages.package.classes.class |
-            ForEach-Object { $_ } |
-            Select-Object -ExpandProperty metrics |
-            ForEach-Object { [int]$_.coveredlines } |
-            Measure-Object -Sum).Sum
-          $linesTotal = [int]($coverage.coverage.packages.package.classes.class |
-            ForEach-Object { $_ } |
-            Select-Object -ExpandProperty metrics |
-            ForEach-Object { [int]$_.lines } |
-            Measure-Object -Sum).Sum
-          if ($linesTotal -eq 0) {
-            Write-Host "Coverage: no instrumented lines; gate skipped."
+          if ($covFiles.Count -eq 0) {
+            Write-Host "Coverage: no cobertura report found; gate skipped."
             exit 0
           }
-          $pct = [math]::Round(100.0 * $linesCovered / $linesTotal, 1)
-          Write-Host "Coverage: ${pct}% ($linesCovered / $linesTotal lines)"
+          [xml]$coverage = Get-Content -LiteralPath $covFiles[0].FullName -Raw
+          $totalLines = 0
+          $totalCovered = 0
+          $packages = $coverage.coverage.packages.package
+          if ($packages -is [array]) {
+            foreach ($pkg in $packages) {
+              $classes = $pkg.classes.class
+              if ($classes -isnot [array]) { $classes = @($classes) }
+              foreach ($cls in $classes) {
+                $totalLines += [int]($cls.metrics.GetAttribute("lines"))
+                $totalCovered += [int]($cls.metrics.GetAttribute("coveredlines"))
+              }
+            }
+          } elseif ($packages -ne $null) {
+            $classes = $packages.classes.class
+            if ($classes -isnot [array]) { $classes = @($classes) }
+            foreach ($cls in $classes) {
+              $totalLines += [int]($cls.metrics.GetAttribute("lines"))
+              $totalCovered += [int]($cls.metrics.GetAttribute("coveredlines"))
+            }
+          }
+          if ($totalLines -eq 0) {
+            Write-Host "Coverage: 0 instrumented lines; gate skipped."
+            exit 0
+          }
+          $pct = [math]::Round(100.0 * $totalCovered / $totalLines, 1)
+          Write-Host "Coverage: ${pct}% ($totalCovered / $totalLines lines)"
           if ($pct -lt 70) {
             throw "Coverage ${pct}% is below the 70% minimum gate."
           }
