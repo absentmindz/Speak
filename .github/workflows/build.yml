@@ -106,6 +106,8 @@ jobs:
           # offline, data-only model loading and blocks the affected Trainer,
           # X-CLIP, LightGlue, and remote-kernel execution paths. Keep these
           # exceptions narrow so every new advisory still fails the build.
+          # Last checked: 2026-07-28 — qwen-tts 0.1.1 is still the latest
+          # published version with this pinned dependency chain.
           python -m pip_audit `
             -r tools/requirements-qwen-tts-cu126.lock.txt `
             --no-deps --disable-pip --progress-spinner off `
@@ -131,6 +133,35 @@ jobs:
           --no-build
           --collect "XPlat Code Coverage"
           --results-directory TestResults
+          -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+
+      - name: Verify minimum test coverage
+        shell: pwsh
+        run: |
+          $covFiles = Get-ChildItem -Path TestResults -Recurse -Filter coverage.cobertura.xml
+          if ($covFiles.Count -eq 0) {
+            throw "No coverage report generated."
+          }
+          [xml]$coverage = Get-Content -LiteralPath $covFiles[0].FullName -Raw
+          $linesCovered = [int]($coverage.coverage.packages.package.classes.class |
+            ForEach-Object { $_ } |
+            Select-Object -ExpandProperty metrics |
+            ForEach-Object { [int]$_.coveredlines } |
+            Measure-Object -Sum).Sum
+          $linesTotal = [int]($coverage.coverage.packages.package.classes.class |
+            ForEach-Object { $_ } |
+            Select-Object -ExpandProperty metrics |
+            ForEach-Object { [int]$_.lines } |
+            Measure-Object -Sum).Sum
+          if ($linesTotal -eq 0) {
+            Write-Host "Coverage: no instrumented lines; gate skipped."
+            exit 0
+          }
+          $pct = [math]::Round(100.0 * $linesCovered / $linesTotal, 1)
+          Write-Host "Coverage: ${pct}% ($linesCovered / $linesTotal lines)"
+          if ($pct -lt 70) {
+            throw "Coverage ${pct}% is below the 70% minimum gate."
+          }
 
       - name: Publish clean portable application
         shell: pwsh

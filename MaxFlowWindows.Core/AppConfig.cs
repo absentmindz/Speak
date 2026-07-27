@@ -61,12 +61,14 @@ public sealed class AppConfig
         if (string.IsNullOrWhiteSpace(toolsRoot))
         {
             toolsRoot = AppContext.BaseDirectory.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar);
+            System.Diagnostics.Debug.WriteLine($"[Speak.Config] ToolsRoot=\"{config.Paths.ToolsRoot}\" failed to resolve; falling back to app directory: {toolsRoot}");
         }
 
         string cacheRoot = PortablePathResolver.ExpandPath(config.Paths.CacheRoot, modelsRoot);
         if (string.IsNullOrWhiteSpace(cacheRoot))
         {
             cacheRoot = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Speak", "cache");
+            System.Diagnostics.Debug.WriteLine($"[Speak.Config] CacheRoot=\"{config.Paths.CacheRoot}\" failed to resolve — falling back to LocalAppData: {cacheRoot}");
         }
 
         return new AppConfig

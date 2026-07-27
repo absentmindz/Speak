@@ -82,7 +82,7 @@ cd Speak
 dotnet restore Speak.sln --locked-mode
 dotnet build Speak.sln -c Release --no-restore
 dotnet test Speak.sln -c Release --no-build
-dotnet run --project Speak.csproj
+dotnet run -c Release --project Speak.csproj
 ```
 
 A clean checkout starts with safe portable defaults; `appsettings.json` is
