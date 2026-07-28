@@ -181,6 +181,58 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Use
 for security issues; do not post secrets, private audio, or transcripts in a
 public issue. The full policy is in [SECURITY.md](SECURITY.md).
 
+## DI Container
+
+Speak includes a lightweight Dependency Injection container in `MaxFlowWindows.Core.ServiceContainer`. It supports singleton and transient lifetimes, constructor injection, factory registration, and thread-safe resolution.
+
+### Register services
+
+```csharp
+var container = new ServiceContainer();
+container.Register<ILogger, ConsoleLogger>().AsSingleton();
+container.Register<IRepository, SqlRepository>().AsTransient();
+```
+
+### Resolve services
+
+```csharp
+var logger = container.Resolve<ILogger>();
+```
+
+Constructor parameters are resolved automatically:
+
+```csharp
+// UserService(IRepository repository, ILogger logger)
+var userService = container.Resolve<UserService>();
+```
+
+### Register an existing instance
+
+```csharp
+container.RegisterInstance<ILogger>(new ConsoleLogger());
+```
+
+### Register a factory
+
+```csharp
+container.RegisterFactory(() => new LoggingService(), ServiceLifetime.Singleton);
+```
+
+### Check registration
+
+```csharp
+if (container.IsRegistered<ILogger>()) { ... }
+```
+
+### Lifetimes
+
+- **Singleton** — same instance returned on every resolve.
+- **Transient** — new instance created on every resolve.
+
+### Duplicate registration
+
+Registering the same service type twice throws `InvalidOperationException`.
+
 ## License
 
 Speak is licensed under the [Apache License 2.0](LICENSE). Attribution
