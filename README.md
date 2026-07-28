@@ -17,6 +17,14 @@
   <img src="https://img.shields.io/badge/license-Apache--2.0-green" alt="Apache 2.0">
 </p>
 
+## Download and run
+
+1. Go to the **[Releases page](https://github.com/absentmindz/Speak/releases)**
+2. Download the latest `Speak-*-Setup.exe`
+3. Run the installer — it will guide you through the setup (admin rights required)
+
+That's it. No Python, no .NET SDK, no command line needed. Cloud transcription (Groq) requires an API key; local speech features need separate model downloads.
+
 > Speak is currently a pre-release source project. Review the security and
 > privacy notes before using it with sensitive audio or text.
 
@@ -144,11 +152,11 @@ proxy, firewall rule, tunnel, or port-forward.
 
 ## Packages and releases
 
-CI publishes a self-contained Windows x64 portable ZIP for successful builds.
-Tagged builds create a GitHub release containing that ZIP, an SPDX 2.2 software
-bill of materials, and SHA-256 checksums for both. The SBOM is also embedded in
-the portable ZIP. A release is not an offline-AI bundle: model weights and
-Python/CUDA runtimes are separate.
+CI publishes a **self-contained Inno Setup installer** (`Speak-*-Setup.exe`)
+and a **portable ZIP** for every tagged build. Each release also includes an
+SPDX 2.2 software bill of materials and SHA-256 checksums. The SBOM is also
+embedded in the portable ZIP. A release is not an offline-AI bundle: model
+weights and Python/CUDA runtimes are separate.
 
 Maintainers can build the machine-wide Inno Setup installer and optional
 disk-spanned model pack with

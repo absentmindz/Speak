@@ -204,6 +204,33 @@ jobs:
           $checksums |
             Set-Content -LiteralPath ./SHA256SUMS.txt -Encoding ascii
 
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          $iscc = Resolve-Path "${env:ProgramFiles(x86)}\Inno Setup *\ISCC.exe"
+          if (-not $iscc) { throw "ISCC.exe not found after installation." }
+          Write-Host "Inno Setup installed: $iscc"
+
+      - name: Build Inno Setup installer
+        shell: pwsh
+        run: |
+          [xml]$props = Get-Content -LiteralPath ./Directory.Build.props -Raw
+          $version = $props.SelectSingleNode("/Project/PropertyGroup/VersionPrefix").InnerText.Trim()
+
+          $stageDir = "packaging/stage/App"
+          New-Item -ItemType Directory -Path $stageDir -Force | Out-Null
+          Copy-Item -Path publish-output/* -Destination $stageDir -Recurse -Force
+          Copy-Item -LiteralPath packaging/appsettings.portable.json `
+            -Destination "$stageDir/appsettings.json" -Force
+
+          $iscc = Resolve-Path "${env:ProgramFiles(x86)}\Inno Setup *\ISCC.exe"
+          & $iscc "/DAppVersion=$version" packaging/Speak.iss
+          if ($LASTEXITCODE -ne 0) { throw "Installer compilation failed." }
+
+          Copy-Item "packaging/artifacts/Speak-$version-Setup.exe" -Destination . -Force
+          Remove-Item -Recurse -Force packaging/stage, packaging/artifacts
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -219,6 +246,7 @@ jobs:
           name: Speak-win-x64
           path: |
             Speak-win-x64-portable.zip
+            Speak-*.exe
             Speak.spdx.json
             SHA256SUMS.txt
           if-no-files-found: error
@@ -244,10 +272,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$env:GITHUB_REF_NAME" `
-            ./release-artifact/Speak-win-x64-portable.zip `
-            ./release-artifact/Speak.spdx.json `
-            ./release-artifact/SHA256SUMS.txt `
+          $setupExe = Get-ChildItem -LiteralPath ./release-artifact -Filter "Speak-*-Setup.exe" |
+            Select-Object -ExpandProperty FullName
+          $assets = @(
+            "./release-artifact/Speak-win-x64-portable.zip"
+          )
+          if ($setupExe) { $assets += $setupExe }
+          $assets += @(
+            "./release-artifact/Speak.spdx.json",
+            "./release-artifact/SHA256SUMS.txt"
+          )
+          gh release create "$env:GITHUB_REF_NAME" $assets `
             --repo "$env:GITHUB_REPOSITORY" `
             --verify-tag `
             --generate-notes `
