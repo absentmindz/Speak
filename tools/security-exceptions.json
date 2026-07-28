@@ -235,7 +235,8 @@
       "enforcement": "pip-audit-ignore",
       "status": "accepted-temporary",
       "approval": "Accepted for the Windows-only Speak 0.5.2 release because the affected source-distribution path is not used.",
-      "renewalHistory": []
+      "renewalHistory": [],
+      "dependencyReviewAllow": true
     }
   ]
 }

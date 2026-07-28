@@ -104,6 +104,7 @@ def validate_registry(
     seen_exception_ids: set[str] = set()
     seen_advisory_ids: set[str] = set()
     expected_pip_ignores: set[str] = set()
+    expected_dependency_review_allows: set[str] = set()
 
     for raw_entry in entries:
         if not isinstance(raw_entry, dict):
@@ -148,6 +149,11 @@ def validate_registry(
             raise RegistryError(f"{exception_id}: status must be accepted-temporary.")
 
         advisories = _require_text_list(raw_entry, "advisoryIds", exception_id)
+        dependency_review_allow = raw_entry.get("dependencyReviewAllow", False)
+        if not isinstance(dependency_review_allow, bool):
+            raise RegistryError(
+                f"{exception_id}: dependencyReviewAllow must be true or false."
+            )
         for advisory in advisories:
             if not ADVISORY_PATTERN.fullmatch(advisory):
                 raise RegistryError(f"{exception_id}: malformed advisory id {advisory!r}.")
@@ -157,6 +163,14 @@ def validate_registry(
             seen_advisory_ids.add(normalized)
             if advisory.upper().startswith("PYSEC-"):
                 expected_pip_ignores.add(advisory.upper())
+            if dependency_review_allow and advisory.upper().startswith("GHSA-"):
+                expected_dependency_review_allows.add(advisory.upper())
+        if dependency_review_allow and not any(
+            advisory.upper().startswith("GHSA-") for advisory in advisories
+        ):
+            raise RegistryError(
+                f"{exception_id}: dependencyReviewAllow requires a GHSA id."
+            )
 
         _require_text_list(raw_entry, "compensatingControls", exception_id)
         evidence = _require_text_list(raw_entry, "validationEvidence", exception_id)
@@ -231,6 +245,28 @@ def validate_registry(
         untracked = sorted(workflow_ignores - expected_pip_ignores)
         raise RegistryError(
             "pip-audit ignore drift detected. "
+            f"Missing from workflow: {missing or 'none'}; "
+            f"untracked in workflow: {untracked or 'none'}."
+        )
+
+    dependency_review_values = re.findall(
+        r"^\s*allow-ghsas:\s*([^#\n]+)", workflow_text, re.MULTILINE
+    )
+    workflow_dependency_review_allows = {
+        value.upper()
+        for raw_value in dependency_review_values
+        for value in re.split(r"[\s,]+", raw_value.strip().strip("'\""))
+        if value
+    }
+    if workflow_dependency_review_allows != expected_dependency_review_allows:
+        missing = sorted(
+            expected_dependency_review_allows - workflow_dependency_review_allows
+        )
+        untracked = sorted(
+            workflow_dependency_review_allows - expected_dependency_review_allows
+        )
+        raise RegistryError(
+            "dependency-review allowlist drift detected. "
             f"Missing from workflow: {missing or 'none'}; "
             f"untracked in workflow: {untracked or 'none'}."
         )

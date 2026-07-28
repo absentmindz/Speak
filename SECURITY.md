@@ -29,7 +29,7 @@ triage and a coordinated fix before public disclosure.
 Speak does not silently hide release-blocking dependency risk. Temporary exceptions live in
 [`tools/security-exceptions.json`](tools/security-exceptions.json), are checked by CI, expire
 automatically, and must be reviewed every seven days. CI fails if an exception is malformed,
-stale, expired, no longer matches its lock file, or drifts from the exact `pip-audit` ignore list.
+stale, expired, no longer matches its lock file, or drifts from the exact `pip-audit` and dependency-review allowlists.
 
 Current Qwen-only exceptions, last reviewed **July 28, 2026** and expiring
 **August 31, 2026**:

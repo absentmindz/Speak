@@ -62,6 +62,20 @@ class SecurityExceptionRegistryTests(unittest.TestCase):
                 today=date(2026, 7, 28),
             )
 
+    def test_untracked_dependency_review_allow_is_rejected(self) -> None:
+        workflow = self.workflow.replace(
+            "allow-ghsas: GHSA-h35f-9h28-mq5c",
+            "allow-ghsas: GHSA-h35f-9h28-mq5c, GHSA-xxxx-yyyy-zzzz",
+        )
+        with self.assertRaisesRegex(VALIDATOR.RegistryError, "allowlist drift"):
+            VALIDATOR.validate_registry(
+                copy.deepcopy(self.registry),
+                REPO_ROOT,
+                workflow,
+                self.security,
+                today=date(2026, 7, 28),
+            )
+
     def test_lock_pin_drift_is_rejected(self) -> None:
         registry = copy.deepcopy(self.registry)
         registry["exceptions"][0]["pinnedVersion"] = "999.0.0"
