@@ -89,7 +89,7 @@ tomlkit==0.14.0
 torch==2.12.1+cu126
 torchaudio==2.11.0+cu126
 tqdm==4.69.1
-transformers==4.57.3
+transformers==5.14.1
 typer==0.26.8
 typing-inspection==0.4.2
 typing_extensions==4.15.0
