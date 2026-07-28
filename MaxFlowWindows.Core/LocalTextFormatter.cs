@@ -15,6 +15,10 @@ public sealed class LocalTextFormatter
 
 	private static readonly string[] Fillers = new string[6] { "um", "uh", "erm", "hmm", "you know", "i mean" };
 
+	[System.Diagnostics.CodeAnalysis.SuppressMessage(
+		"Performance",
+		"CA1822:Mark members as static",
+		Justification = "Format is intentionally an instance service API used by the application and tests.")]
 	public string Format(string text, DictationMode mode, IEnumerable<VocabularyEntry> vocabulary)
 	{
 		FastCommandResult fastCommandResult = ApplyFastCommands(text);
@@ -292,12 +296,12 @@ public sealed class LocalTextFormatter
 		{
 			if (char.IsLetter(text[i]))
 			{
-				ReadOnlySpan<char> readOnlySpan = text.Substring(0, i);
+				ReadOnlySpan<char> readOnlySpan = text.AsSpan(0, i);
 				reference = char.ToUpperInvariant(text[i]);
 				string readOnlySpan2 = new string(reference, 1);
 				string text4 = text;
 				int num2 = i + 1;
-				text = string.Concat(readOnlySpan, readOnlySpan2, text4.Substring(num2, text4.Length - num2));
+				text = string.Concat(readOnlySpan, readOnlySpan2, text4.AsSpan(num2));
 				break;
 			}
 		}

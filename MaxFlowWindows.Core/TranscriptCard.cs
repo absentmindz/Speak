@@ -66,7 +66,7 @@ public sealed class TranscriptCard
 			string text = FormattedText.Trim();
 			if (text.Length > 140)
 			{
-				return text.Substring(0, 140) + "...";
+				return string.Concat(text.AsSpan(0, 140), "...".AsSpan());
 			}
 			return text;
 		}

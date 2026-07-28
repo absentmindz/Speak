@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Text;
 using System.Windows.Automation;
 
 namespace MaxFlowWindows.Core;
@@ -27,7 +26,7 @@ public static class PasteGuard
 	private static extern uint GetWindowThreadProcessId(nint hWnd, out uint processId);
 
 	[DllImport("user32.dll", CharSet = CharSet.Unicode)]
-	private static extern int GetClassName(nint hWnd, StringBuilder className, int maxCount);
+	private static extern int GetClassName(nint hWnd, [Out] char[] className, int maxCount);
 
 	public static bool IsSafeToPaste(nint targetWindow, bool requireForeground = false)
 	{
@@ -49,10 +48,11 @@ public static class PasteGuard
 			if (SensitiveProcesses.Contains(name) || ContainsSensitiveFragment(name))
 				return false;
 
-			var className = new StringBuilder(256);
-			if (GetClassName(targetWindow, className, className.Capacity) <= 0)
+			char[] className = new char[256];
+			int classNameLength = GetClassName(targetWindow, className, className.Length);
+			if (classNameLength <= 0)
 				return false;
-			if (ContainsSensitiveFragment(className.ToString()))
+			if (ContainsSensitiveFragment(new string(className, 0, classNameLength)))
 				return false;
 
 			if (requireForeground)

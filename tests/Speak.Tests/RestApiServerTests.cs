@@ -11,6 +11,10 @@ namespace Speak.Tests;
 public sealed class RestApiServerTests
 {
     private static readonly string Token = new('t', 32);
+    private static readonly string[] OriginWithPath =
+    {
+        "https://trusted.example.test/application"
+    };
 
     [Fact]
     public async Task RouteRequiresBearerToken()
@@ -119,7 +123,7 @@ public sealed class RestApiServerTests
         Assert.Throws<ArgumentException>(() => new RestApiServer(
             ReserveLoopbackPort(),
             Token,
-            new[] { "https://trusted.example.test/application" }));
+            OriginWithPath));
     }
 
     [Fact]

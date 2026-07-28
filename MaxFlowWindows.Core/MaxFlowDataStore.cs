@@ -174,7 +174,7 @@ public sealed class MaxFlowDataStore
 		}
 	}
 
-	private void WriteSchemaFile(string dataPath)
+	private static void WriteSchemaFile(string dataPath)
 	{
 		string schemaPath = dataPath + ".schema";
 		try

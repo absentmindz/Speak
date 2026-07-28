@@ -1,0 +1,241 @@
+{
+  "schemaVersion": 1,
+  "registryOwner": "Speak repository security and release owner",
+  "defaultReviewCadenceDays": 7,
+  "exceptions": [
+    {
+      "id": "SEC-2026-001",
+      "advisoryIds": [
+        "PYSEC-2026-2288",
+        "GHSA-69w3-r845-3855",
+        "CVE-2026-1839"
+      ],
+      "package": "transformers",
+      "pinnedVersion": "4.57.3",
+      "lockPath": "tools/requirements-qwen-tts-cu126.lock.txt",
+      "component": "Qwen local TTS",
+      "severity": "medium",
+      "owner": "Speak repository security and release owner",
+      "remediationOwner": "Qwen local TTS maintainer",
+      "technicalBlocker": "The latest official qwen-tts release, 0.1.1, requires transformers==4.57.3. The patched Transformers 5.x line is not API-compatible with the current Qwen runtime.",
+      "exploitabilityAssessment": "The vulnerable Trainer checkpoint-loading path is not imported or used by Speak's Qwen inference workers.",
+      "compensatingControls": [
+        "Qwen runs offline with local model directories only.",
+        "Model validation rejects executable, pickle-based, symlinked, custom-code, auto_map, custom_pipelines, and unsafe attention configuration content.",
+        "The worker never invokes Transformers Trainer APIs."
+      ],
+      "validationEvidence": [
+        "tools/tests/test_worker_security.py",
+        "tools/tests/test_speak_worker.py",
+        "tools/qwen_tts_runtime.py"
+      ],
+      "createdDate": "2026-07-28",
+      "lastReviewedDate": "2026-07-28",
+      "expiresDate": "2026-08-31",
+      "reviewCadenceDays": 7,
+      "exitCriteria": "Upgrade to a tested qwen-tts release compatible with a non-vulnerable Transformers version, then remove the pip-audit ignore and this exception.",
+      "upstreamReferences": [
+        "https://pypi.org/project/qwen-tts/",
+        "https://github.com/advisories/GHSA-69w3-r845-3855"
+      ],
+      "enforcement": "pip-audit-ignore",
+      "status": "accepted-temporary",
+      "approval": "Accepted for the Speak 0.5.2 release with weekly review and expiry enforcement.",
+      "renewalHistory": []
+    },
+    {
+      "id": "SEC-2026-002",
+      "advisoryIds": [
+        "PYSEC-2026-2289",
+        "GHSA-29pf-2h5f-8g72",
+        "CVE-2026-4372"
+      ],
+      "package": "transformers",
+      "pinnedVersion": "4.57.3",
+      "lockPath": "tools/requirements-qwen-tts-cu126.lock.txt",
+      "component": "Qwen local TTS",
+      "severity": "high",
+      "owner": "Speak repository security and release owner",
+      "remediationOwner": "Qwen local TTS maintainer",
+      "technicalBlocker": "qwen-tts 0.1.1 exactly pins Transformers 4.57.3, while the patched 5.3+ line is currently incompatible with Qwen audio generation.",
+      "exploitabilityAssessment": "The exploit requires attacker-controlled remote model configuration or downloaded kernels. Speak forces offline mode, accepts local directories only, and rejects the unsafe configuration field before model import.",
+      "compensatingControls": [
+        "HF_HUB_OFFLINE and TRANSFORMERS_OFFLINE are set before Transformers imports.",
+        "Model validation rejects _attn_implementation_internal, auto_map, custom_pipelines, and trust_remote_code content.",
+        "Remote repositories and custom kernels are not accepted by the Qwen worker."
+      ],
+      "validationEvidence": [
+        "tools/tests/test_worker_security.py",
+        "tools/qwen_tts_runtime.py"
+      ],
+      "createdDate": "2026-07-28",
+      "lastReviewedDate": "2026-07-28",
+      "expiresDate": "2026-08-31",
+      "reviewCadenceDays": 7,
+      "exitCriteria": "Upgrade to a tested qwen-tts release compatible with Transformers 5.3 or later and remove this exception.",
+      "upstreamReferences": [
+        "https://pypi.org/project/qwen-tts/",
+        "https://github.com/advisories/GHSA-29pf-2h5f-8g72"
+      ],
+      "enforcement": "pip-audit-ignore",
+      "status": "accepted-temporary",
+      "approval": "Accepted for the Speak 0.5.2 release with offline-only model loading and expiry enforcement.",
+      "renewalHistory": []
+    },
+    {
+      "id": "SEC-2026-003",
+      "advisoryIds": [
+        "PYSEC-2026-2290",
+        "GHSA-fgcw-684q-jj6r",
+        "CVE-2026-5241"
+      ],
+      "package": "transformers",
+      "pinnedVersion": "4.57.3",
+      "lockPath": "tools/requirements-qwen-tts-cu126.lock.txt",
+      "component": "Qwen local TTS",
+      "severity": "high",
+      "owner": "Speak repository security and release owner",
+      "remediationOwner": "Qwen local TTS maintainer",
+      "technicalBlocker": "The patched Transformers 5.5+ line cannot currently replace the exact 4.57.3 dependency required by qwen-tts 0.1.1 without breaking Qwen generation.",
+      "exploitabilityAssessment": "The vulnerable LightGlue nested model-loading path is unrelated to Qwen TTS and is not imported. Speak also rejects remote or custom model code.",
+      "compensatingControls": [
+        "Only validated local Qwen model trees are accepted.",
+        "LightGlue and nested AutoModel remote loading are not used.",
+        "Custom Python, native executables, symlinks, auto_map, and trust_remote_code are rejected."
+      ],
+      "validationEvidence": [
+        "tools/tests/test_worker_security.py",
+        "tools/qwen_tts_runtime.py"
+      ],
+      "createdDate": "2026-07-28",
+      "lastReviewedDate": "2026-07-28",
+      "expiresDate": "2026-08-31",
+      "reviewCadenceDays": 7,
+      "exitCriteria": "Upgrade to a tested qwen-tts release compatible with Transformers 5.5 or later and remove this exception.",
+      "upstreamReferences": [
+        "https://pypi.org/project/qwen-tts/",
+        "https://github.com/advisories/GHSA-fgcw-684q-jj6r"
+      ],
+      "enforcement": "pip-audit-ignore",
+      "status": "accepted-temporary",
+      "approval": "Accepted for the Speak 0.5.2 release because the affected model family is not reachable and local model validation is enforced.",
+      "renewalHistory": []
+    },
+    {
+      "id": "SEC-2026-004",
+      "advisoryIds": [
+        "PYSEC-2025-217",
+        "CVE-2025-14929"
+      ],
+      "package": "transformers",
+      "pinnedVersion": "4.57.3",
+      "lockPath": "tools/requirements-qwen-tts-cu126.lock.txt",
+      "component": "Qwen local TTS",
+      "severity": "high",
+      "owner": "Speak repository security and release owner",
+      "remediationOwner": "Qwen local TTS maintainer",
+      "technicalBlocker": "qwen-tts 0.1.1 requires Transformers 4.57.3; replacing it with the patched 5.x line is not currently release-safe.",
+      "exploitabilityAssessment": "The issue requires deserializing a malicious X-CLIP checkpoint. Speak does not use X-CLIP and rejects pickle-based or executable model material.",
+      "compensatingControls": [
+        "X-CLIP conversion and checkpoint import are not used.",
+        "Pickle weights, executable files, symlinks, and custom model code are rejected.",
+        "Qwen model loading is offline and local-only."
+      ],
+      "validationEvidence": [
+        "tools/tests/test_worker_security.py",
+        "tools/qwen_tts_runtime.py"
+      ],
+      "createdDate": "2026-07-28",
+      "lastReviewedDate": "2026-07-28",
+      "expiresDate": "2026-08-31",
+      "reviewCadenceDays": 7,
+      "exitCriteria": "Upgrade the Qwen stack to a non-vulnerable Transformers release and remove this exception.",
+      "upstreamReferences": [
+        "https://api.osv.dev/v1/vulns/PYSEC-2025-217",
+        "https://pypi.org/project/qwen-tts/"
+      ],
+      "enforcement": "pip-audit-ignore",
+      "status": "accepted-temporary",
+      "approval": "Accepted for the Speak 0.5.2 release with local data-only model restrictions and expiry enforcement.",
+      "renewalHistory": []
+    },
+    {
+      "id": "SEC-2026-005",
+      "advisoryIds": [
+        "GHSA-rrmf-rvhw-rf47",
+        "CVE-2025-3000"
+      ],
+      "package": "torch",
+      "pinnedVersion": "2.12.1+cu126",
+      "lockPath": "tools/requirements-qwen-tts-cu126.lock.txt",
+      "component": "Qwen local TTS",
+      "severity": "low",
+      "owner": "Speak repository security and release owner",
+      "remediationOwner": "Qwen local TTS maintainer",
+      "technicalBlocker": "The official CUDA 12.6 index provides Torch 2.13 but no matching TorchAudio 2.13 build. Qwen imports torchaudio.compliance.kaldi, and TorchAudio documents that its binaries must match the corresponding Torch release.",
+      "exploitabilityAssessment": "The advisory requires torch.jit.script on attacker-controlled code. Speak's Qwen path does not use torch.jit.script and accepts only validated local model data.",
+      "compensatingControls": [
+        "The Qwen worker does not call torch.jit.script.",
+        "Only validated local Qwen model trees are accepted.",
+        "The Dependabot alert remains open and is reviewed weekly rather than dismissed."
+      ],
+      "validationEvidence": [
+        "tools/tests/test_worker_security.py",
+        "tools/qwen_tts_runtime.py"
+      ],
+      "createdDate": "2026-07-28",
+      "lastReviewedDate": "2026-07-28",
+      "expiresDate": "2026-08-31",
+      "reviewCadenceDays": 7,
+      "exitCriteria": "Move Qwen to a tested, officially matched Torch and TorchAudio pair at or above the patched Torch version, then close the open alert and remove this exception.",
+      "upstreamReferences": [
+        "https://github.com/advisories/GHSA-rrmf-rvhw-rf47",
+        "https://download.pytorch.org/whl/cu126/torch/",
+        "https://download.pytorch.org/whl/cu126/torchaudio/"
+      ],
+      "enforcement": "dependabot-open",
+      "status": "accepted-temporary",
+      "approval": "Accepted for the Speak 0.5.2 release while the alert remains visible and matching official binaries are unavailable.",
+      "renewalHistory": []
+    },
+    {
+      "id": "SEC-2026-006",
+      "advisoryIds": [
+        "PYSEC-2026-3447",
+        "GHSA-h35f-9h28-mq5c",
+        "CVE-2026-59890"
+      ],
+      "package": "setuptools",
+      "pinnedVersion": "81.0.0",
+      "lockPath": "tools/requirements-qwen-tts-cu126.lock.txt",
+      "component": "Qwen local TTS environment",
+      "severity": "medium",
+      "owner": "Speak repository security and release owner",
+      "remediationOwner": "Qwen local TTS maintainer",
+      "technicalBlocker": "Qwen currently requires Torch 2.12.1, whose official wheel metadata requires setuptools<82. The advisory is fixed in setuptools 83.0.0, so the patched version makes the official Qwen dependency graph unsatisfiable.",
+      "exploitabilityAssessment": "The issue affects Unicode normalization while building source distributions on macOS APFS or HFS+. Speak 0.5.2 is a Windows application, uses prebuilt wheels, and does not build or publish source distributions at runtime.",
+      "compensatingControls": [
+        "Speak supports Windows and does not execute Qwen packaging workflows on macOS.",
+        "The runtime installs pinned prebuilt wheels and never builds source distributions from untrusted file trees.",
+        "The exception is expiry-enforced and removed when the Qwen Torch stack permits setuptools 83 or later."
+      ],
+      "validationEvidence": [
+        "tools/requirements-qwen-tts-cu126.lock.txt",
+        "tools/tests/test_security_exceptions.py"
+      ],
+      "createdDate": "2026-07-28",
+      "lastReviewedDate": "2026-07-28",
+      "expiresDate": "2026-08-31",
+      "reviewCadenceDays": 7,
+      "exitCriteria": "Move Qwen to a tested Torch release that permits setuptools 83.0.0 or later, then remove the audit ignore and this exception.",
+      "upstreamReferences": [
+        "https://api.osv.dev/v1/vulns/PYSEC-2026-3447",
+        "https://github.com/pypa/setuptools/security/advisories/GHSA-h35f-9h28-mq5c"
+      ],
+      "enforcement": "pip-audit-ignore",
+      "status": "accepted-temporary",
+      "approval": "Accepted for the Windows-only Speak 0.5.2 release because the affected source-distribution path is not used.",
+      "renewalHistory": []
+    }
+  ]
+}

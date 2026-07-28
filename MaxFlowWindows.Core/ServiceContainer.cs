@@ -2,7 +2,6 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Reflection;
 using System.Threading;
 
@@ -19,14 +18,21 @@ internal sealed class ServiceDescriptor
     public Type ServiceType { get; }
     public Type ImplementationType { get; }
     public ServiceLifetime Lifetime { get; }
-    public Func<object>? Factory { get; set; }
-    public object? SingletonInstance { get; set; }
+    public Func<object?>? Factory { get; }
+    public object? SingletonInstance { get; }
 
-    public ServiceDescriptor(Type serviceType, Type implementationType, ServiceLifetime lifetime)
+    public ServiceDescriptor(
+        Type serviceType,
+        Type implementationType,
+        ServiceLifetime lifetime,
+        Func<object?>? factory = null,
+        object? singletonInstance = null)
     {
         ServiceType = serviceType;
         ImplementationType = implementationType;
         Lifetime = lifetime;
+        Factory = factory;
+        SingletonInstance = singletonInstance;
     }
 }
 
@@ -53,178 +59,288 @@ public sealed class ServiceRegistryBuilder<TService, TImplementation>
 
 public sealed class ServiceContainer
 {
-    private readonly ConcurrentDictionary<Type, ServiceDescriptor> _registrations = new();
-    private readonly ConcurrentDictionary<Type, object> _singletons = new();
-    private readonly ReaderWriterLockSlim _lock = new();
-    private readonly Dictionary<Type, object> _syncSingletons = new();
+    private sealed class ResolutionFrame
+    {
+        public Type ServiceType { get; }
+        public ResolutionFrame? Parent { get; }
+
+        public ResolutionFrame(Type serviceType, ResolutionFrame? parent)
+        {
+            ServiceType = serviceType;
+            Parent = parent;
+        }
+    }
+
+    private sealed class SingletonEntry
+    {
+        public object SyncRoot { get; } = new();
+        public object? Instance { get; set; }
+        public bool IsInitialized { get; set; }
+        public bool IsInitializing { get; set; }
+        public int OwnerThreadId { get; set; }
+    }
+
+    private readonly object _registrationLock = new();
+    private readonly object _waitGraphLock = new();
+    private readonly Dictionary<Type, ServiceDescriptor> _registrations = new();
+    private readonly Dictionary<int, int> _threadWaitsFor = new();
+    private readonly ConcurrentDictionary<Type, SingletonEntry> _singletons = new();
+    private readonly AsyncLocal<ResolutionFrame?> _currentResolution = new();
 
     public ServiceRegistryBuilder<TService, TImplementation> Register<TService, TImplementation>()
         where TImplementation : TService
     {
-        var builder = new ServiceRegistryBuilder<TService, TImplementation>(this);
-        return builder;
+        return new ServiceRegistryBuilder<TService, TImplementation>(this);
     }
 
     internal void AddRegistration(Type serviceType, Type implementationType, ServiceLifetime lifetime)
     {
-        _lock.EnterWriteLock();
-        try
-        {
-            if (_registrations.ContainsKey(serviceType))
-                throw new InvalidOperationException($"Service '{serviceType.Name}' is already registered.");
-
-            var descriptor = new ServiceDescriptor(serviceType, implementationType, lifetime);
-            _registrations[serviceType] = descriptor;
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
+        AddDescriptor(new ServiceDescriptor(serviceType, implementationType, lifetime));
     }
 
     public void RegisterFactory<TService>(Func<TService> factory, ServiceLifetime lifetime = ServiceLifetime.Transient)
         where TService : class
     {
-        _lock.EnterWriteLock();
-        try
-        {
-            if (_registrations.ContainsKey(typeof(TService)))
-                throw new InvalidOperationException($"Service '{typeof(TService).Name}' is already registered.");
+        ArgumentNullException.ThrowIfNull(factory);
 
-            var descriptor = new ServiceDescriptor(typeof(TService), typeof(TService), lifetime)
-            {
-                Factory = () => factory()!,
-            };
-            _registrations[typeof(TService)] = descriptor;
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
+        AddDescriptor(new ServiceDescriptor(
+            typeof(TService),
+            typeof(TService),
+            lifetime,
+            factory: () => factory()));
     }
 
     public void RegisterInstance<TService>(TService instance)
         where TService : class
     {
-        _lock.EnterWriteLock();
-        try
-        {
-            if (_registrations.ContainsKey(typeof(TService)))
-                throw new InvalidOperationException($"Service '{typeof(TService).Name}' is already registered.");
+        ArgumentNullException.ThrowIfNull(instance);
 
-            var descriptor = new ServiceDescriptor(typeof(TService), instance.GetType(), ServiceLifetime.Singleton)
-            {
-                SingletonInstance = instance,
-            };
-            _registrations[typeof(TService)] = descriptor;
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
+        AddDescriptor(new ServiceDescriptor(
+            typeof(TService),
+            instance.GetType(),
+            ServiceLifetime.Singleton,
+            singletonInstance: instance));
     }
 
     public TService Resolve<TService>() where TService : notnull
     {
-        var resolveContext = new HashSet<Type>();
-        return (TService)ResolveInternal(typeof(TService), resolveContext);
+        return (TService)ResolveInternal(typeof(TService));
     }
 
     public bool IsRegistered<TService>()
     {
-        _lock.EnterReadLock();
-        try
+        lock (_registrationLock)
         {
             return _registrations.ContainsKey(typeof(TService));
         }
-        finally
+    }
+
+    private void AddDescriptor(ServiceDescriptor descriptor)
+    {
+        lock (_registrationLock)
         {
-            _lock.ExitReadLock();
+            if (_registrations.ContainsKey(descriptor.ServiceType))
+                throw new InvalidOperationException($"Service '{descriptor.ServiceType.Name}' is already registered.");
+
+            _registrations.Add(descriptor.ServiceType, descriptor);
         }
     }
 
-    private object ResolveInternal(Type serviceType, HashSet<Type> resolveContext)
+    private object ResolveInternal(Type serviceType)
     {
-        _lock.EnterReadLock();
-        ServiceDescriptor? descriptor;
-        try
-        {
-            if (!_registrations.TryGetValue(serviceType, out descriptor))
-                throw new InvalidOperationException($"Service '{serviceType.Name}' is not registered.");
-        }
-        finally
-        {
-            _lock.ExitReadLock();
-        }
+        var descriptor = GetDescriptor(serviceType);
+
+        if (IsResolving(serviceType))
+            throw new InvalidOperationException($"Circular dependency detected: {FormatResolutionPath(serviceType)}.");
 
         if (descriptor.Lifetime == ServiceLifetime.Singleton)
-        {
-            _lock.EnterReadLock();
-            bool hasInstance = _syncSingletons.TryGetValue(serviceType, out var existing);
-            _lock.ExitReadLock();
+            return ResolveSingleton(descriptor);
 
-            if (hasInstance)
-                return existing!;
-
-            _lock.EnterWriteLock();
-            try
-            {
-                if (_syncSingletons.TryGetValue(serviceType, out existing))
-                    return existing!;
-
-                var instance = CreateInstance(descriptor, resolveContext);
-                _syncSingletons[serviceType] = instance;
-                return instance;
-            }
-            finally
-            {
-                _lock.ExitWriteLock();
-            }
-        }
-
-        return CreateInstance(descriptor, resolveContext);
+        return CreateInstance(descriptor);
     }
 
-    private object CreateInstance(ServiceDescriptor descriptor, HashSet<Type> resolveContext)
+    private ServiceDescriptor GetDescriptor(Type serviceType)
     {
-        if (descriptor.Factory is not null)
-            return descriptor.Factory();
+        lock (_registrationLock)
+        {
+            if (!_registrations.TryGetValue(serviceType, out var descriptor))
+                throw new InvalidOperationException($"Service '{serviceType.Name}' is not registered.");
 
-        if (descriptor.SingletonInstance is not null)
-            return descriptor.SingletonInstance;
+            return descriptor;
+        }
+    }
 
-        if (!resolveContext.Add(descriptor.ServiceType))
-            throw new InvalidOperationException($"Circular dependency detected for '{descriptor.ServiceType.Name}'.");
+    private object ResolveSingleton(ServiceDescriptor descriptor)
+    {
+        var entry = _singletons.GetOrAdd(descriptor.ServiceType, _ => new SingletonEntry());
+        var currentThreadId = Environment.CurrentManagedThreadId;
+
+        while (true)
+        {
+            lock (entry.SyncRoot)
+            {
+                if (entry.IsInitialized)
+                    return entry.Instance!;
+
+                if (entry.IsInitializing)
+                {
+                    WaitForSingleton(entry, descriptor.ServiceType, currentThreadId);
+                    continue;
+                }
+
+                entry.IsInitializing = true;
+                entry.OwnerThreadId = currentThreadId;
+            }
+
+            try
+            {
+                var instance = CreateInstance(descriptor);
+
+                lock (entry.SyncRoot)
+                {
+                    entry.Instance = instance;
+                    entry.IsInitialized = true;
+                    entry.IsInitializing = false;
+                    entry.OwnerThreadId = 0;
+                    Monitor.PulseAll(entry.SyncRoot);
+                }
+
+                return instance;
+            }
+            catch
+            {
+                lock (entry.SyncRoot)
+                {
+                    entry.IsInitializing = false;
+                    entry.OwnerThreadId = 0;
+                    Monitor.PulseAll(entry.SyncRoot);
+                }
+
+                throw;
+            }
+        }
+    }
+
+    private void WaitForSingleton(SingletonEntry entry, Type serviceType, int currentThreadId)
+    {
+        var ownerThreadId = entry.OwnerThreadId;
+        if (ownerThreadId == currentThreadId)
+        {
+            throw new InvalidOperationException(
+                $"Circular dependency detected while resolving singleton '{serviceType.Name}'.");
+        }
+
+        RegisterThreadWait(currentThreadId, ownerThreadId, serviceType);
+        try
+        {
+            Monitor.Wait(entry.SyncRoot);
+        }
+        finally
+        {
+            ClearThreadWait(currentThreadId, ownerThreadId);
+        }
+    }
+
+    private void RegisterThreadWait(int waitingThreadId, int ownerThreadId, Type serviceType)
+    {
+        lock (_waitGraphLock)
+        {
+            _threadWaitsFor[waitingThreadId] = ownerThreadId;
+
+            var threadId = ownerThreadId;
+            while (true)
+            {
+                if (threadId == waitingThreadId)
+                {
+                    _threadWaitsFor.Remove(waitingThreadId);
+                    throw new InvalidOperationException(
+                        $"Circular dependency detected while resolving singleton '{serviceType.Name}'.");
+                }
+
+                if (!_threadWaitsFor.TryGetValue(threadId, out threadId))
+                    return;
+            }
+        }
+    }
+
+    private void ClearThreadWait(int waitingThreadId, int ownerThreadId)
+    {
+        lock (_waitGraphLock)
+        {
+            if (_threadWaitsFor.TryGetValue(waitingThreadId, out var recordedOwnerThreadId)
+                && recordedOwnerThreadId == ownerThreadId)
+            {
+                _threadWaitsFor.Remove(waitingThreadId);
+            }
+        }
+    }
+
+    private object CreateInstance(ServiceDescriptor descriptor)
+    {
+        var previousFrame = _currentResolution.Value;
+        _currentResolution.Value = new ResolutionFrame(descriptor.ServiceType, previousFrame);
 
         try
         {
+            if (descriptor.Factory is not null)
+            {
+                return descriptor.Factory()
+                    ?? throw new InvalidOperationException(
+                        $"Factory for service '{descriptor.ServiceType.Name}' returned null.");
+            }
+
+            if (descriptor.SingletonInstance is not null)
+                return descriptor.SingletonInstance;
+
             var constructors = descriptor.ImplementationType
                 .GetConstructors(BindingFlags.Public | BindingFlags.Instance)
-                .OrderByDescending(c => c.GetParameters().Length)
+                .OrderByDescending(constructor => constructor.GetParameters().Length)
+                .ThenBy(constructor => constructor.MetadataToken)
                 .ToArray();
 
             if (constructors.Length == 0)
-                throw new InvalidOperationException($"No public constructor found for '{descriptor.ImplementationType.Name}'.");
+                throw new InvalidOperationException(
+                    $"No public constructor found for '{descriptor.ImplementationType.Name}'.");
 
-            ConstructorInfo targetCtor = constructors[0];
-            var parameters = targetCtor.GetParameters();
-            var resolvedParams = new object[parameters.Length];
+            var targetConstructor = constructors[0];
+            var parameters = targetConstructor.GetParameters();
+            var resolvedParameters = new object[parameters.Length];
 
-            for (int i = 0; i < parameters.Length; i++)
+            for (var index = 0; index < parameters.Length; index++)
             {
-                resolvedParams[i] = ResolveInternal(parameters[i].ParameterType, resolveContext);
+                resolvedParameters[index] = ResolveInternal(parameters[index].ParameterType);
             }
 
-            var instance = targetCtor.Invoke(resolvedParams);
-            return instance;
+            return targetConstructor.Invoke(resolvedParameters);
         }
         finally
         {
-            resolveContext.Remove(descriptor.ServiceType);
+            _currentResolution.Value = previousFrame;
         }
     }
 
-    public void Build()
+    private bool IsResolving(Type serviceType)
     {
+        for (var frame = _currentResolution.Value; frame is not null; frame = frame.Parent)
+        {
+            if (frame.ServiceType == serviceType)
+                return true;
+        }
+
+        return false;
     }
+
+    private string FormatResolutionPath(Type repeatedServiceType)
+    {
+        var path = new List<string>();
+        for (var frame = _currentResolution.Value; frame is not null; frame = frame.Parent)
+        {
+            path.Add(frame.ServiceType.Name);
+        }
+
+        path.Reverse();
+        path.Add(repeatedServiceType.Name);
+        return string.Join(" -> ", path);
+    }
+
 }

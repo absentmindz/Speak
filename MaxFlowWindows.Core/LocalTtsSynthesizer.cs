@@ -38,7 +38,9 @@ public sealed class LocalTtsSynthesizer
 			"SPEAK_QWEN_BASE_WORKER_PORT", 8767),
 	};
 
-	private static readonly Dictionary<string, string> WorkerScripts = new(StringComparer.OrdinalIgnoreCase)
+	private const string UnifiedWorkerScript = "tools\\speak_worker.py";
+
+	private static readonly Dictionary<string, string> LegacyWorkerScripts = new(StringComparer.OrdinalIgnoreCase)
 	{
 		["qwen3-customvoice-1.7b"] = "tools\\qwen3-tts\\qwen3_tts_worker.py",
 		["qwen3-base-1.7b"] = "tools\\qwen3-tts\\qwen3_tts_worker.py",
@@ -140,6 +142,10 @@ public sealed class LocalTtsSynthesizer
 		};
 	}
 
+	[System.Diagnostics.CodeAnalysis.SuppressMessage(
+		"Performance",
+		"CA1822:Mark members as static",
+		Justification = "This method is part of the instance-oriented TTS service API.")]
 	public string DescribeAvailability(string engineId)
 	{
 		TtsEngineOption engine = TtsEngineOption.Find(engineId);
@@ -154,13 +160,21 @@ public sealed class LocalTtsSynthesizer
 		return $"{engine.Name}: {runtime}, {model}, {script}; {mode}.";
 	}
 
+	[System.Diagnostics.CodeAnalysis.SuppressMessage(
+		"Performance",
+		"CA1822:Mark members as static",
+		Justification = "This method is part of the instance-oriented TTS service API.")]
 	public bool CanWarmUp(string engineId)
 	{
 		return WorkerPorts.ContainsKey(engineId)
-			&& WorkerScripts.TryGetValue(engineId, out string? script)
-			&& File.Exists(ResolveToolScript(script));
+			&& LegacyWorkerScripts.TryGetValue(engineId, out string? script)
+			&& File.Exists(ResolvePreferredQwenScript(script, out _));
 	}
 
+	[System.Diagnostics.CodeAnalysis.SuppressMessage(
+		"Performance",
+		"CA1822:Mark members as static",
+		Justification = "This method is part of the instance-oriented TTS service API.")]
 	public bool CanSynthesize(string engineId)
 	{
 		TtsEngineOption engine = TtsEngineOption.Find(engineId);
@@ -170,6 +184,10 @@ public sealed class LocalTtsSynthesizer
 			&& HasSynthesisScript(engine.Id);
 	}
 
+	[System.Diagnostics.CodeAnalysis.SuppressMessage(
+		"Performance",
+		"CA1822:Mark members as static",
+		Justification = "This method is part of the instance-oriented TTS service API.")]
 	public bool IsEngineWarm(string engineId)
 	{
 		TtsWorkerContext? worker = _activeWorker;
@@ -191,7 +209,7 @@ public sealed class LocalTtsSynthesizer
 		{
 			return false;
 		}
-		if (!WorkerScripts.TryGetValue(engineId, out string scriptRelPath))
+		if (!LegacyWorkerScripts.TryGetValue(engineId, out string scriptRelPath))
 		{
 			return false;
 		}
@@ -203,7 +221,7 @@ public sealed class LocalTtsSynthesizer
 				return true;
 			}
 			await StopWorkerAsync();
-			string scriptPath = ResolveToolScript(scriptRelPath);
+			string scriptPath = ResolvePreferredQwenScript(scriptRelPath, out bool useUnifiedWorker);
 			if (!File.Exists(scriptPath))
 			{
 				return false;
@@ -228,6 +246,11 @@ public sealed class LocalTtsSynthesizer
 			};
 			SanitizeChildProcessEnvironment(psi);
 			psi.ArgumentList.Add(scriptPath);
+			if (useUnifiedWorker)
+			{
+				psi.ArgumentList.Add("tts");
+				psi.ArgumentList.Add("serve");
+			}
 			psi.ArgumentList.Add("--host");
 			psi.ArgumentList.Add("127.0.0.1");
 			psi.ArgumentList.Add("--port");
@@ -313,6 +336,10 @@ public sealed class LocalTtsSynthesizer
 		}
 	}
 
+	[System.Diagnostics.CodeAnalysis.SuppressMessage(
+		"Performance",
+		"CA1822:Mark members as static",
+		Justification = "This method is part of the instance-oriented TTS service API.")]
 	public async Task StopWarmEngineAsync()
 	{
 		await _workerGate.WaitAsync();
@@ -483,7 +510,18 @@ public sealed class LocalTtsSynthesizer
 			RedirectStandardError = true,
 			CreateNoWindow = true
 		};
-		startInfo.ArgumentList.Add(RequireToolScript("tools\\qwen3_tts_local.py"));
+		string scriptPath = ResolvePreferredQwenScript("tools\\qwen3_tts_local.py", out bool useUnifiedWorker);
+		if (!File.Exists(scriptPath))
+		{
+			throw new FileNotFoundException("Qwen3 TTS helper script is not installed.", scriptPath);
+		}
+		startInfo.ArgumentList.Add(scriptPath);
+		if (useUnifiedWorker)
+		{
+			startInfo.ArgumentList.Add("tts");
+			startInfo.ArgumentList.Add("say");
+			startInfo.ArgumentList.Add("--text");
+		}
 		startInfo.ArgumentList.Add(request.Text);
 		startInfo.ArgumentList.Add("--out");
 		startInfo.ArgumentList.Add(output);
@@ -536,7 +574,18 @@ public sealed class LocalTtsSynthesizer
 				RedirectStandardError = true,
 				CreateNoWindow = true
 			};
-			startInfo.ArgumentList.Add(RequireToolScript("tools\\qwen3_tts_clone.py"));
+			string scriptPath = ResolvePreferredQwenScript("tools\\qwen3_tts_clone.py", out bool useUnifiedWorker);
+			if (!File.Exists(scriptPath))
+			{
+				throw new FileNotFoundException("Qwen3 TTS clone helper script is not installed.", scriptPath);
+			}
+			startInfo.ArgumentList.Add(scriptPath);
+			if (useUnifiedWorker)
+			{
+				startInfo.ArgumentList.Add("tts");
+				startInfo.ArgumentList.Add("clone");
+				startInfo.ArgumentList.Add("--text");
+			}
 			startInfo.ArgumentList.Add(text);
 			startInfo.ArgumentList.Add("--ref-audio");
 			startInfo.ArgumentList.Add(refAudio);
@@ -821,7 +870,7 @@ public sealed class LocalTtsSynthesizer
 	{
 		return engineId switch
 		{
-			"qwen3-customvoice-1.7b" or "qwen3-base-1.7b" => ResolveToolScript("tools\\qwen3_tts_local.py"),
+			"qwen3-customvoice-1.7b" or "qwen3-base-1.7b" => ResolvePreferredQwenScript("tools\\qwen3_tts_local.py", out _),
 			"tortoise-ultra-fast" => Path.Combine(_config.Paths.ToolsRoot, "tortoise-tts", "tortoise", "do_tts.py"),
 			"chatterbox-turbo" or "chatterbox-multilingual-v3" => ResolveToolScript("tools\\chatter-tts\\chatter_tts_generate.py"),
 			_ => ""
@@ -854,6 +903,19 @@ public sealed class LocalTtsSynthesizer
 			}
 		}
 		return Path.Combine(WorkspaceRoot, normalizedRelativePath);
+	}
+
+	private static string ResolvePreferredQwenScript(string legacyRelativePath, out bool useUnifiedWorker)
+	{
+		string unified = ResolveToolScript(UnifiedWorkerScript);
+		if (File.Exists(unified))
+		{
+			useUnifiedWorker = true;
+			return unified;
+		}
+
+		useUnifiedWorker = false;
+		return ResolveToolScript(legacyRelativePath);
 	}
 
 	private static IEnumerable<string> ToolRoots()
