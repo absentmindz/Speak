@@ -2,7 +2,7 @@
 
 #define MyAppName "Speak"
 #ifndef AppVersion
-  #define AppVersion "0.5.1"
+  #define AppVersion "0.5.2"
 #endif
 #define MyAppVersion AppVersion
 #define MyAppPublisher "Speak contributors"

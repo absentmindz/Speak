@@ -19,11 +19,15 @@
 
 ## Download and run
 
-1. Go to the **[Releases page](https://github.com/absentmindz/Speak/releases)**
-2. Download the latest `Speak-*-Setup.exe`
-3. Run the installer — it will guide you through the setup (admin rights required)
+1. Go to the **[Releases page](https://github.com/absentmindz/Speak/releases)**.
+2. For v0.5.2 or later, download `Speak-<version>-Setup.exe` under **Assets**.
+3. Verify it against the matching entry in `SHA256SUMS.txt`.
+4. Run the installer (administrator approval is required).
 
-That's it. No Python, no .NET SDK, no command line needed. Cloud transcription (Groq) requires an API key; local speech features need separate model downloads.
+The installer is self-contained, so running Speak does not require the .NET
+SDK. Groq cloud transcription does not require local Python, but it does
+require an API key. Local Whisper and TTS are not bundled: they require
+separate Python environments, dependencies, and model downloads.
 
 > Speak is currently a pre-release source project. Review the security and
 > privacy notes before using it with sensitive audio or text.
@@ -152,20 +156,27 @@ proxy, firewall rule, tunnel, or port-forward.
 
 ## Packages and releases
 
-CI publishes a **self-contained Inno Setup installer** (`Speak-*-Setup.exe`)
-and a **portable ZIP** for every tagged build. Each release also includes an
-SPDX 2.2 software bill of materials and SHA-256 checksums. The SBOM is also
-embedded in the portable ZIP. A release is not an offline-AI bundle: model
-weights and Python/CUDA runtimes are separate.
+For a version tag that exactly matches `Directory.Build.props`, CI publishes
+one **self-contained Inno Setup installer** (`Speak-<version>-Setup.exe`), one
+**portable ZIP**, one SPDX 2.2 software bill of materials, and
+`SHA256SUMS.txt`. The checksum file covers every other release asset exactly
+once, and CI verifies the hashes again before creating the GitHub release. Tag
+builds also create GitHub-hosted build-provenance attestations for all four
+assets after checksum verification. Attestations supplement rather than
+replace `SHA256SUMS.txt`. The SBOM is also embedded in the portable ZIP. A
+release is not an offline-AI bundle: model weights and Python/CUDA runtimes are
+separate.
 
-Maintainers can build the machine-wide Inno Setup installer and optional
-disk-spanned model pack with
-[`packaging/build-packages.ps1`](packaging/build-packages.ps1). The app
+Maintainers build the machine-wide installer and complete release set through
+the canonical
+[`packaging/build-packages.ps1`](packaging/build-packages.ps1) path. The app
 installer requires administrator approval and preserves Speak 0.5's
 machine-wide identity and existing local runtime configuration so an upgrade
 replaces the earlier installation without discarding configured paths. The
-packaging process never copies the maintainer's virtual environment, settings, history,
-recordings, or API keys. See [packaging/README.md](packaging/README.md).
+packaging process never copies the maintainer's virtual environment, settings,
+history, recordings, or API keys. Offline model-pack production remains
+disabled pending an audited provenance manifest. See
+[packaging/README.md](packaging/README.md).
 
 Installers are not currently Authenticode-signed. Verify
 `SHA256SUMS.txt` and expect Windows to show an unknown-publisher warning.

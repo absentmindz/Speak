@@ -1,54 +1,73 @@
 # Speak packaging
 
-The packaging process is intentionally split into independently verifiable
-artifacts:
+The canonical release build produces exactly four files in
+`packaging/artifacts/`:
 
-- `Speak-<version>-win-x64-portable.zip` contains the self-contained .NET
-  desktop application, the reviewed Python worker source files, the portable
-  configuration, and license notices.
-- `Speak-<version>-Setup.exe` installs the same application under
-  `%ProgramFiles%\Speak` for all Windows users and requires administrator
-  approval. It preserves Speak 0.5's scope, path, application identity,
-  model-root registry fallback, and existing local `appsettings.json` so an
-  upgrade replaces the previous installation without discarding configured
-  runtime/model paths.
-- The separately installed offline model pack is planned but production is
-  currently disabled. It will remain disabled until the repository contains
-  an audited, immutable provenance manifest for every model file.
+- `Speak-<version>-Setup.exe` — the self-contained, machine-wide Windows app
+  installer;
+- `Speak-<version>-win-x64-portable.zip` — the same self-contained application
+  for portable use;
+- `Speak-<version>.spdx.json` — the SPDX 2.2 software bill of materials;
+- `SHA256SUMS.txt` — one SHA-256 entry for each of the other three assets.
+
+The installer requires administrator approval and preserves Speak 0.5's app
+identity, model-root registry fallback, and an existing local
+`appsettings.json`, so an upgrade replaces the previous installation without
+discarding configured runtime or model paths.
 
 Python, CUDA, FFmpeg, model weights, user settings, history, recordings,
 environment variables, and API keys are **not** copied from the build
-computer. Local Whisper and TTS therefore require a separately managed Python
-environment unless a future signed runtime package is provided.
+computer. The app and installer include the .NET runtime, but local Whisper
+and TTS still require separately managed Python environments, dependencies,
+and model weights. Cloud transcription does not require local Python.
 
 ## Build
 
 Prerequisites:
 
-- the .NET 8 SDK selected by `global.json`;
-- Inno Setup 6 or 7 for installer builds.
+- the .NET 8.0.422 SDK selected by `global.json`;
+- Inno Setup (CI pins Chocolatey package `innosetup` 6.7.1).
 
 ```powershell
-# Portable ZIP + app installer only
-.\packaging\build-packages.ps1 -SkipModelPack
-
-# Portable ZIP only
-.\packaging\build-packages.ps1 -SkipInstaller
+.\packaging\build-packages.ps1
 ```
 
-Do not attempt a model-pack build yet. The script and Inno definition fail
-closed until model provenance, expected hashes and sizes, reparse-point
-handling, and extra-file rejection are independently auditable.
+Use `-IsccPath` when Inno Setup is installed outside the standard locations.
+Use `-NoRestore` only after a successful locked restore. The script installs
+Microsoft's SBOM tool at pinned version 4.1.5 into the disposable staging
+directory unless `-SbomToolPath` is supplied.
 
-The build validates the publish tree, emits a NuGet dependency inventory and
-build metadata, and writes SHA-256 hashes for every deliverable to
-`packaging/artifacts/SHA256SUMS.txt`. The application ZIP and installer do not
-contain model weights.
+The script is the only packaging path used by CI. It performs a self-contained
+`win-x64` publish, validates and smoke-tests the publish tree, generates the
+SBOM, builds the ZIP and exactly one installer, then creates checksums only
+after every release asset exists. Finally it calls the non-destructive verifier:
+
+```powershell
+.\packaging\verify-release-assets.ps1 `
+  -ArtifactsRoot .\packaging\artifacts `
+  -Version 0.5.2
+```
+
+The verifier rejects missing or extra files, duplicate or incomplete checksum
+entries, hash mismatches, unsafe ZIP paths, a malformed installer header, and
+a non-SPDX-2.2 SBOM. For version tags, a dedicated least-privilege job runs the
+verifier again and then creates GitHub-hosted build-provenance attestations for
+all four release assets. The release job remains gated on that attestation job
+and independently revalidates the checksum file before publishing. Provenance
+attestations supplement rather than replace `SHA256SUMS.txt`.
+
+## Offline model pack
+
+An offline model pack is not a release asset and production remains disabled.
+Do not attempt to distribute one until the repository contains an audited,
+immutable provenance manifest for every model file, including expected hashes
+and sizes, reparse-point handling, and rejection of unexpected files.
 
 ## Release limitations
 
-Artifacts are reproducible from pinned NuGet lock files, but the Inno Setup
-executables are not currently Authenticode-signed. Windows may display an
-unknown-publisher warning. Do not describe an artifact as trusted or complete
-until its checksum, malware scan, license bundle, and—when available—digital
-signature have been independently verified.
+NuGet dependencies are restored from lock files and packaging tools are pinned,
+but the Inno Setup installer is not currently Authenticode-signed. Windows may
+display an unknown-publisher warning. Verify `SHA256SUMS.txt` before running a
+downloaded installer or portable build. Do not describe an artifact as signed
+or trusted until its checksum, malware scan, license bundle, and—when
+available—digital signature have been independently verified.

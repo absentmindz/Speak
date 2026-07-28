@@ -253,7 +253,7 @@ public sealed class LlmModelDiscovery : IDisposable
 		return "50";
 	}
 
-	private static IReadOnlyList<string> FallbackModels(string providerId)
+	private static string[] FallbackModels(string providerId)
 	{
 		return providerId switch
 		{
@@ -295,7 +295,7 @@ public sealed class LlmModelDiscovery : IDisposable
 		return "50";
 	}
 
-	private static IReadOnlyList<string> FallbackSpeechModels(string providerId)
+	private static string[] FallbackSpeechModels(string providerId)
 	{
 		if (!(providerId == "groq"))
 		{

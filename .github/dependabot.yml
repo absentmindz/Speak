@@ -7,6 +7,13 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - dependencies
+    ignore:
+      - dependency-name: "Microsoft.Extensions.Configuration*"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: System.Text.Json
+        update-types:
+          - version-update:semver-major
   - package-ecosystem: pip
     directory: /tools
     schedule:
@@ -14,6 +21,16 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - dependencies
+    ignore:
+      - dependency-name: tokenizers
+        versions:
+          - "0.23.1"
+      - dependency-name: mpmath
+        versions:
+          - "1.4.1"
+      - dependency-name: gradio
+        versions:
+          - "6.20.0"
   - package-ecosystem: github-actions
     directory: /
     schedule:

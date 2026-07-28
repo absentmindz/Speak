@@ -36,10 +36,15 @@ using NAudio.Wave;
 
 namespace MaxFlowWindows;
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage(
+	"Design",
+	"CA1001:Types that own disposable fields should be disposable",
+	Justification = "WPF owns the Window lifecycle; OnClosing and ShutdownThenCloseAsync dispose all owned resources.")]
 public partial class MainWindow : Window, IComponentConnector
 {
 	private delegate nint LowLevelKeyboardProc(int nCode, nint wParam, nint lParam);
 
+#pragma warning disable CS0649 // Populated by Win32 marshalling rather than managed assignments.
 	private struct KeyboardHookStruct
 	{
 		public int VkCode;
@@ -79,6 +84,7 @@ public partial class MainWindow : Window, IComponentConnector
 
 		public nint ExtraInfo;
 	}
+#pragma warning restore CS0649
 
 	private sealed record DeliveryCommand(string Text, string? OutputDestinationId, bool PressEnterAfterPaste);
 
@@ -134,6 +140,13 @@ public partial class MainWindow : Window, IComponentConnector
 
 		public bool IsTranscribing { get; set; }
 	}
+
+	private static readonly JsonSerializerOptions IndentedJsonOptions = new JsonSerializerOptions
+	{
+		WriteIndented = true
+	};
+
+	private static readonly char[] RestApiOriginSeparators = { ',', ';' };
 
 	private readonly MaxFlowDataStore _store = new MaxFlowDataStore();
 
@@ -743,7 +756,7 @@ public partial class MainWindow : Window, IComponentConnector
 		InitializeSettings();
 		InstallAudioWorkspacePage();
 		RenderModes();
-		SelectMode(DictationMode.Presets.First());
+		SelectMode(DictationMode.Presets[0]);
 		SetActiveTab("dictate");
 		ApplyTheme();
 		ApplyPremiumRuntimePolish();
@@ -1469,7 +1482,9 @@ public partial class MainWindow : Window, IComponentConnector
 		{
 			if (count >= 5)
 				break;
-			string preview = entry.Length > 50 ? entry.Substring(0, 50) + "..." : entry;
+			string preview = entry.Length > 50
+				? string.Concat(entry.AsSpan(0, 50), "...".AsSpan())
+				: entry;
 			ToolStripMenuItem item = new ToolStripMenuItem(preview);
 			string captured = entry;
 			item.Click += delegate
@@ -1706,7 +1721,7 @@ public partial class MainWindow : Window, IComponentConnector
 		ApplyModeCardFinishing();
 	}
 
-	private UIElement CreateModeButtonContent(DictationMode mode)
+	private Grid CreateModeButtonContent(DictationMode mode)
 	{
 		Grid obj = new Grid
 		{
@@ -1887,7 +1902,7 @@ public partial class MainWindow : Window, IComponentConnector
 		tabsHost.Children.Add(_audioTabButton);
 	}
 
-	private UIElement CreateAudioWorkbench()
+	private Grid CreateAudioWorkbench()
 	{
 		Grid workbench = new Grid
 		{
@@ -1938,7 +1953,7 @@ public partial class MainWindow : Window, IComponentConnector
 		return workbench;
 	}
 
-	private UIElement CreateAudioHeroCard()
+	private Border CreateAudioHeroCard()
 	{
 		Border hero = new Border
 		{
@@ -2005,7 +2020,7 @@ public partial class MainWindow : Window, IComponentConnector
 		return hero;
 	}
 
-	private UIElement CreateAudioTranscribeCard()
+	private Border CreateAudioTranscribeCard()
 	{
 		StackPanel body = new StackPanel
 		{
@@ -2058,7 +2073,7 @@ public partial class MainWindow : Window, IComponentConnector
 		return CreateAudioStudioPanel("01", "Transcribe", "Capture and convert audio without leaving the workspace.", body);
 	}
 
-	private UIElement CreateAudioSpeakCard()
+	private Border CreateAudioSpeakCard()
 	{
 		StackPanel body = new StackPanel
 		{
@@ -2123,7 +2138,7 @@ public partial class MainWindow : Window, IComponentConnector
 		return CreateAudioStudioPanel("02", "Speak", "Generate local voice audio and preview it in-app.", body);
 	}
 
-	private UIElement CreateAudioVoiceLabPanel()
+	private Border CreateAudioVoiceLabPanel()
 	{
 		StackPanel lab = new StackPanel
 		{
@@ -2133,7 +2148,7 @@ public partial class MainWindow : Window, IComponentConnector
 		return CreateAudioStudioPanel("03", "Voice Lab", "Prepare clone profiles with the installed Qwen3 Base model.", lab);
 	}
 
-	private UIElement CreateAudioCloneCard()
+	private Border CreateAudioCloneCard()
 	{
 		StackPanel body = new StackPanel
 		{
@@ -2185,7 +2200,7 @@ public partial class MainWindow : Window, IComponentConnector
 		return CreateAudioSubPanel("Clone", body);
 	}
 
-	private UIElement CreateAudioDesignCard()
+	private Border CreateAudioDesignCard()
 	{
 		StackPanel body = new StackPanel
 		{
@@ -2210,7 +2225,7 @@ public partial class MainWindow : Window, IComponentConnector
 		return CreateAudioSubPanel("Design", body);
 	}
 
-	private UIElement CreateAudioOutputRail()
+	private Border CreateAudioOutputRail()
 	{
 		Border rail = new Border
 		{
@@ -2281,7 +2296,7 @@ public partial class MainWindow : Window, IComponentConnector
 		return rail;
 	}
 
-	private UIElement CreateAudioStudioPanel(string number, string title, string subtitle, UIElement body)
+	private Border CreateAudioStudioPanel(string number, string title, string subtitle, UIElement body)
 	{
 		Border card = new Border
 		{
@@ -2352,7 +2367,7 @@ public partial class MainWindow : Window, IComponentConnector
 		return card;
 	}
 
-	private UIElement CreateAudioSubPanel(string title, UIElement body)
+	private Border CreateAudioSubPanel(string title, UIElement body)
 	{
 		Border panel = new Border
 		{
@@ -2379,12 +2394,12 @@ public partial class MainWindow : Window, IComponentConnector
 		return panel;
 	}
 
-	private UIElement CreateAudioLogoMark()
+	private Grid CreateAudioLogoMark()
 	{
 		return CreateAudioLogoMark(34.0);
 	}
 
-	private UIElement CreateAudioLogoMark(double size)
+	private Grid CreateAudioLogoMark(double size)
 	{
 		Grid mark = new Grid
 		{
@@ -2429,7 +2444,7 @@ public partial class MainWindow : Window, IComponentConnector
 		return mark;
 	}
 
-	private UIElement CreateAudioSidebarLogoContent(bool isActive)
+	private Grid CreateAudioSidebarLogoContent(bool isActive)
 	{
 		Grid mark = new Grid
 		{
@@ -2495,7 +2510,7 @@ public partial class MainWindow : Window, IComponentConnector
 		};
 	}
 
-	private Grid CreateAudioOptionGrid()
+	private static Grid CreateAudioOptionGrid()
 	{
 		Grid grid = new Grid
 		{
@@ -2534,7 +2549,7 @@ public partial class MainWindow : Window, IComponentConnector
 		grid.Children.Add(field);
 	}
 
-	private UIElement CreateAudioField(string label, UIElement control)
+	private StackPanel CreateAudioField(string label, UIElement control)
 	{
 		StackPanel field = new StackPanel
 		{
@@ -2553,7 +2568,7 @@ public partial class MainWindow : Window, IComponentConnector
 		return field;
 	}
 
-	private UIElement CreateAudioRailButton(string label, RoutedEventHandler clickHandler)
+	private System.Windows.Controls.Button CreateAudioRailButton(string label, RoutedEventHandler clickHandler)
 	{
 		System.Windows.Controls.Button button = CreateTtsButton(label, clickHandler, isPrimary: false);
 		button.HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch;
@@ -2561,7 +2576,7 @@ public partial class MainWindow : Window, IComponentConnector
 		return button;
 	}
 
-	private UIElement CreateAudioRailDivider()
+	private Border CreateAudioRailDivider()
 	{
 		return new Border
 		{
@@ -2571,7 +2586,7 @@ public partial class MainWindow : Window, IComponentConnector
 		};
 	}
 
-	private UIElement CreateAudioCapabilityRow(string label, string value, string detail)
+	private Grid CreateAudioCapabilityRow(string label, string value, string detail)
 	{
 		Grid row = new Grid
 		{
@@ -2615,7 +2630,7 @@ public partial class MainWindow : Window, IComponentConnector
 		return row;
 	}
 
-	private System.Windows.Controls.ComboBox CreateAudioComboBox(System.Collections.IEnumerable itemsSource, string displayMemberPath, string selectedValuePath, object selectedValue)
+	private static System.Windows.Controls.ComboBox CreateAudioComboBox(System.Collections.IEnumerable itemsSource, string displayMemberPath, string selectedValuePath, object selectedValue)
 	{
 		System.Windows.Controls.ComboBox comboBox = new System.Windows.Controls.ComboBox
 		{
@@ -2796,7 +2811,7 @@ public partial class MainWindow : Window, IComponentConnector
 		host.Children.Add(card);
 	}
 
-	private UIElement CreateTtsSettingsRow(string label, UIElement control)
+	private Grid CreateTtsSettingsRow(string label, UIElement control)
 	{
 		Grid grid = new Grid
 		{
@@ -3042,10 +3057,7 @@ public partial class MainWindow : Window, IComponentConnector
 			model = TtsEngineOption.Find("qwen3-base-1.7b").ModelPath,
 			referenceAudio = copiedReference,
 			status = "prepared"
-		}, new JsonSerializerOptions
-		{
-			WriteIndented = true
-		}));
+		}, IndentedJsonOptions));
 		StatusTextBlock.Text = "Voice clone profile prepared";
 		if (_audioCloneStatusTextBlock != null)
 		{
@@ -3131,10 +3143,7 @@ public partial class MainWindow : Window, IComponentConnector
 			model = "",
 			prompt,
 			status = "brief-saved"
-		}, new JsonSerializerOptions
-		{
-			WriteIndented = true
-		}));
+		}, IndentedJsonOptions));
 		StatusTextBlock.Text = "Voice design brief saved";
 		if (_audioDesignStatusTextBlock != null)
 		{
@@ -3247,8 +3256,8 @@ public partial class MainWindow : Window, IComponentConnector
 	{
 		if (_audioTranscribeStatusTextBlock != null)
 		{
-			EngineProfile engine = EngineProfile.Presets.FirstOrDefault((EngineProfile option) => option.Id.Equals(_settings.EngineId, StringComparison.OrdinalIgnoreCase)) ?? EngineProfile.Presets.First();
-			TranscriptionModelOption model = _transcriptionModels.FirstOrDefault((TranscriptionModelOption option) => option.Id.Equals(_settings.TranscriptionModelId, StringComparison.OrdinalIgnoreCase)) ?? _transcriptionModels.First();
+			EngineProfile engine = EngineProfile.Presets.FirstOrDefault((EngineProfile option) => option.Id.Equals(_settings.EngineId, StringComparison.OrdinalIgnoreCase)) ?? EngineProfile.Presets[0];
+			TranscriptionModelOption model = _transcriptionModels.FirstOrDefault((TranscriptionModelOption option) => option.Id.Equals(_settings.TranscriptionModelId, StringComparison.OrdinalIgnoreCase)) ?? _transcriptionModels[0];
 			_audioTranscribeStatusTextBlock.Text = $"{engine.Name}. Model: {model.Name}. Device: {SelectedWhisperDeviceName()}. Audio files: {System.IO.Path.Combine(_store.Root, "recordings")}";
 		}
 		if (_audioCloneStatusTextBlock != null)
@@ -4037,7 +4046,7 @@ public partial class MainWindow : Window, IComponentConnector
 		InstallEditorialVisualLayer(grid, kind, opacity);
 	}
 
-	private Canvas CreateEditorialCanvas(string kind, double opacity)
+	private static Canvas CreateEditorialCanvas(string kind, double opacity)
 	{
 		return new Canvas
 		{
@@ -4103,11 +4112,11 @@ public partial class MainWindow : Window, IComponentConnector
 		}
 	}
 
-	private Border FindBorderContainingText(DependencyObject root, string text)
+	private static Border FindBorderContainingText(DependencyObject root, string text)
 	{
 		foreach (TextBlock item in FindVisualChildren<TextBlock>(root))
 		{
-			if (!string.IsNullOrWhiteSpace(item.Text) && item.Text.IndexOf(text, StringComparison.OrdinalIgnoreCase) >= 0)
+			if (!string.IsNullOrWhiteSpace(item.Text) && item.Text.Contains(text, StringComparison.OrdinalIgnoreCase))
 			{
 				return FindVisualParent<Border>(item);
 			}
@@ -5270,7 +5279,7 @@ public partial class MainWindow : Window, IComponentConnector
 		{
 			return false;
 		}
-		return value.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0;
+		return value.Contains(query, StringComparison.OrdinalIgnoreCase);
 	}
 
 	private static void AnimatePageIn(FrameworkElement page)
@@ -5647,7 +5656,7 @@ public partial class MainWindow : Window, IComponentConnector
 				}
 			}
 		}
-		string text = ResolveWhisperServerScriptPath();
+		string text = ResolveWhisperServerScriptPath(out bool useUnifiedWorker);
 		if (!File.Exists(_settings.WhisperPythonPath))
 		{
 			throw new InvalidOperationException("Whisper Python missing: " + _settings.WhisperPythonPath);
@@ -5661,12 +5670,24 @@ public partial class MainWindow : Window, IComponentConnector
 		ProcessStartInfo processStartInfo = new ProcessStartInfo
 		{
 			FileName = _settings.WhisperPythonPath,
-			Arguments = $"\"{text}\" --host 127.0.0.1 --port {WhisperServerPort} --idle-minutes {_settings.ModelKeepAliveMinutes} --model-dir \"{value}\"",
 			RedirectStandardOutput = true,
 			RedirectStandardError = true,
 			UseShellExecute = false,
 			CreateNoWindow = true
 		};
+		processStartInfo.ArgumentList.Add(text);
+		if (useUnifiedWorker)
+		{
+			processStartInfo.ArgumentList.Add("whisper");
+		}
+		processStartInfo.ArgumentList.Add("--host");
+		processStartInfo.ArgumentList.Add("127.0.0.1");
+		processStartInfo.ArgumentList.Add("--port");
+		processStartInfo.ArgumentList.Add(WhisperServerPort.ToString(System.Globalization.CultureInfo.InvariantCulture));
+		processStartInfo.ArgumentList.Add("--idle-minutes");
+		processStartInfo.ArgumentList.Add(_settings.ModelKeepAliveMinutes.ToString(System.Globalization.CultureInfo.InvariantCulture));
+		processStartInfo.ArgumentList.Add("--model-dir");
+		processStartInfo.ArgumentList.Add(value);
 		LocalTtsSynthesizer.SanitizeChildProcessEnvironment(processStartInfo);
 		processStartInfo.Environment["PYTHONUTF8"] = "1";
 		processStartInfo.Environment["PYTHONIOENCODING"] = "utf-8";
@@ -5853,14 +5874,31 @@ public partial class MainWindow : Window, IComponentConnector
 		}
 	}
 
-	private static string ResolveWhisperServerScriptPath()
+	private string ResolveWhisperServerScriptPath(out bool useUnifiedWorker)
 	{
-		string text = System.IO.Path.Combine(AppContext.BaseDirectory, "Tools", "whisper_resident_server.py");
-		if (File.Exists(text))
+		if (!string.IsNullOrWhiteSpace(_settings.WhisperWrapperPath))
 		{
-			return text;
+			useUnifiedWorker = System.IO.Path.GetFileName(_settings.WhisperWrapperPath)
+				.Equals("speak_worker.py", StringComparison.OrdinalIgnoreCase);
+			return _settings.WhisperWrapperPath;
 		}
-		return AppConfig.Current.Transcription.WhisperServerScriptPath;
+
+		string configuredLegacyScript = AppConfig.Current.Transcription.WhisperServerScriptPath;
+		if (!string.IsNullOrWhiteSpace(configuredLegacyScript))
+		{
+			useUnifiedWorker = false;
+			return configuredLegacyScript;
+		}
+
+		string unifiedWorker = System.IO.Path.Combine(AppContext.BaseDirectory, "Tools", "speak_worker.py");
+		if (File.Exists(unifiedWorker))
+		{
+			useUnifiedWorker = true;
+			return unifiedWorker;
+		}
+
+		useUnifiedWorker = false;
+		return System.IO.Path.Combine(AppContext.BaseDirectory, "Tools", "whisper_resident_server.py");
 	}
 
 	private static string? ResolveFfmpegDirectory()
@@ -6953,7 +6991,7 @@ public partial class MainWindow : Window, IComponentConnector
 
 	private MaxFlowSettings SettingsFromUiWithoutSaving()
 	{
-		TranscriptionModelOption transcriptionModelOption = SelectedTranscriptionModel() ?? _transcriptionModels.First();
+		TranscriptionModelOption transcriptionModelOption = SelectedTranscriptionModel() ?? _transcriptionModels[0];
 		return new MaxFlowSettings
 		{
 			LocaleId = ((LocaleComboBox.SelectedValue as string) ?? _settings.LocaleId),
@@ -7418,7 +7456,7 @@ public partial class MainWindow : Window, IComponentConnector
 			enabled.Equals("yes", StringComparison.OrdinalIgnoreCase);
 
 		allowedOrigins = ReadEnvironmentVariable("SPEAK_REST_API_ALLOWED_ORIGINS")
-			.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+			.Split(RestApiOriginSeparators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
 			.Where(origin => Uri.TryCreate(origin, UriKind.Absolute, out Uri? uri) &&
 				(uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ||
 				 uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)))
@@ -7680,7 +7718,7 @@ public partial class MainWindow : Window, IComponentConnector
 		string text2 = (text ?? "").ReplaceLineEndings(" ").Trim();
 		if (text2.Length > 120)
 		{
-			return text2.Substring(0, 120) + "...";
+			return string.Concat(text2.AsSpan(0, 120), "...".AsSpan());
 		}
 		return text2;
 	}
@@ -7770,7 +7808,7 @@ public partial class MainWindow : Window, IComponentConnector
 		return ExternalEditLearner.Extract(pastedText, edited);
 	}
 
-	private string TryReadFocusedEditableText(nint expectedTargetWindow)
+	private static string TryReadFocusedEditableText(nint expectedTargetWindow)
 	{
 		try
 		{
@@ -7862,7 +7900,7 @@ public partial class MainWindow : Window, IComponentConnector
 		string text = CleanLearnedPhrase(phrase);
 		if (text.Length > 42)
 		{
-			return text.Substring(0, 42) + "...";
+			return string.Concat(text.AsSpan(0, 42), "...".AsSpan());
 		}
 		return text;
 	}
@@ -7912,7 +7950,7 @@ public partial class MainWindow : Window, IComponentConnector
 		}
 	}
 
-	private bool TrySetClipboardText(string text)
+	private static bool TrySetClipboardText(string text)
 	{
 		for (int i = 1; i <= 5; i++)
 		{
@@ -8161,7 +8199,7 @@ public partial class MainWindow : Window, IComponentConnector
 	private void SaveSettingsFromUi()
 	{
 		int previousRecordingRetentionDays = _settings.RecordingRetentionDays;
-		TranscriptionModelOption transcriptionModelOption = SelectedTranscriptionModel() ?? _transcriptionModels.First();
+		TranscriptionModelOption transcriptionModelOption = SelectedTranscriptionModel() ?? _transcriptionModels[0];
 		_settings = new MaxFlowSettings
 		{
 			LocaleId = ((LocaleComboBox.SelectedValue as string) ?? MaxFlowSettings.Default.LocaleId),
@@ -8437,7 +8475,7 @@ public partial class MainWindow : Window, IComponentConnector
 			shortcutGesture = ShortcutGesture.Default;
 		}
 		settings.DictationShortcut = shortcutGesture.ToStorageString();
-		TranscriptionModelOption transcriptionModelOption = transcriptionModels.FirstOrDefault((TranscriptionModelOption option) => option.Id == settings.TranscriptionModelId) ?? transcriptionModels.FirstOrDefault((TranscriptionModelOption option) => option.Id == MaxFlowSettings.Default.TranscriptionModelId) ?? transcriptionModels.First();
+		TranscriptionModelOption transcriptionModelOption = transcriptionModels.FirstOrDefault((TranscriptionModelOption option) => option.Id == settings.TranscriptionModelId) ?? transcriptionModels.FirstOrDefault((TranscriptionModelOption option) => option.Id == MaxFlowSettings.Default.TranscriptionModelId) ?? transcriptionModels[0];
 		settings.TranscriptionModelId = transcriptionModelOption.Id;
 		settings.WhisperModelPath = transcriptionModelOption.ModelPath;
 		TtsEngineOption ttsEngineOption = TtsEngineOption.Find(settings.TtsEngineId);
@@ -8454,7 +8492,7 @@ public partial class MainWindow : Window, IComponentConnector
 		if (!settings.TtsVoiceId.StartsWith("clone:", StringComparison.OrdinalIgnoreCase)
 			&& ttsVoiceOptions.All((TtsVoiceOption option) => !option.Id.Equals(settings.TtsVoiceId, StringComparison.OrdinalIgnoreCase)))
 		{
-			settings.TtsVoiceId = ttsVoiceOptions.First().Id;
+			settings.TtsVoiceId = ttsVoiceOptions[0].Id;
 		}
 		if (string.IsNullOrWhiteSpace(settings.QwenTtsCustomVoiceModelPath) || !Directory.Exists(settings.QwenTtsCustomVoiceModelPath))
 		{
@@ -8522,7 +8560,7 @@ public partial class MainWindow : Window, IComponentConnector
 			UpdateCloudSttStatus();
 			return;
 		}
-		TranscriptionModelOption transcriptionModelOption = SelectedTranscriptionModel() ?? _transcriptionModels.First();
+		TranscriptionModelOption transcriptionModelOption = SelectedTranscriptionModel() ?? _transcriptionModels[0];
 		bool flag = File.Exists(transcriptionModelOption.ModelPath);
 		bool flag2 = File.Exists(_settings.WhisperPythonPath);
 		TranscriptionModelStatusTextBlock.Text = $"{transcriptionModelOption.Name} - model {(flag ? "found" : "missing")} - CUDA runtime {(flag2 ? "ready" : "missing")}";

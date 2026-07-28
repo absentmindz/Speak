@@ -167,6 +167,10 @@ public partial class ShortcutWidgetWindow : Window, IComponentConnector
 		}
 	}
 
+	[System.Diagnostics.CodeAnalysis.SuppressMessage(
+		"Performance",
+		"CA1822:Mark members as static",
+		Justification = "This is an instance-facing window customization API used by MainWindow.")]
 	public void SetTransitionDurations(int layoutMilliseconds, int fadeMilliseconds)
 	{
 		LayoutTransitionDuration = new Duration(TimeSpan.FromMilliseconds(Math.Clamp(layoutMilliseconds, 180, 480)));

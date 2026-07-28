@@ -176,10 +176,10 @@ public sealed class UiConfig
     public string Theme { get; init; } = "dark";
     public bool KeepHistory { get; init; } = true;
     public bool ShowCompletionToast { get; init; } = true;
-    public bool AutoLearnCorrections { get; init; } = false;
+    public bool AutoLearnCorrections { get; init; }
     public bool ShowShortcutWidget { get; init; } = true;
     public bool MinimizeToTray { get; init; } = true;
-    public bool StartWithWindows { get; init; } = false;
+    public bool StartWithWindows { get; init; }
     public string DictationShortcut { get; init; } = "Ctrl+Win";
 }
 

@@ -39,6 +39,7 @@ $requiredFiles = @(
     "LICENSE",
     "NOTICE",
     "appsettings.template.json",
+    "tools\speak_worker.py",
     "tools\whisper_resident_server.py",
     "tools\qwen3-tts\qwen3_tts_worker.py"
 )

@@ -6,6 +6,19 @@ namespace MaxFlowWindows.Core;
 
 public sealed class TtsVoiceOption
 {
+	private static readonly string[] CustomVoiceNames =
+	{
+		"Aiden",
+		"Dylan",
+		"Eric",
+		"Ono_anna",
+		"Ryan",
+		"Serena",
+		"Sohee",
+		"Uncle_fu",
+		"Vivian"
+	};
+
 	public string Id { get; set; } = "";
 
 	public string Name { get; set; } = "";
@@ -16,18 +29,7 @@ public sealed class TtsVoiceOption
 	{
 		if (engineId.Equals("qwen3-customvoice-1.7b", StringComparison.OrdinalIgnoreCase))
 		{
-			return new[]
-			{
-				"Aiden",
-				"Dylan",
-				"Eric",
-				"Ono_anna",
-				"Ryan",
-				"Serena",
-				"Sohee",
-				"Uncle_fu",
-				"Vivian"
-			}.Select((string voice) => new TtsVoiceOption
+			return CustomVoiceNames.Select((string voice) => new TtsVoiceOption
 			{
 				Id = voice,
 				Name = voice.Replace("_", " "),

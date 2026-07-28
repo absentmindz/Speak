@@ -5,6 +5,7 @@ using System.Runtime.Versioning;
 using System.Windows.Resources;
 
 [assembly: AssemblyAssociatedContentFile("tools/whisper_resident_server.py")]
+[assembly: AssemblyAssociatedContentFile("tools/speak_worker.py")]
 [assembly: AssemblyAssociatedContentFile("speak.ico")]
 [assembly: AssemblyAssociatedContentFile("speak_logo.png")]
 [assembly: InternalsVisibleTo("Speak.Tests")]
