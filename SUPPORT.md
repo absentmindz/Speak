@@ -1,6 +1,6 @@
 # Support
 
-Speak Community is an Apache-2.0 project. The planned paid support and Founding Pro offer are not live until checkout, service terms, and support capacity are configured.
+Speak Community is an Apache-2.0 project. The simple $21 one-time launch offer is not live until checkout, service terms, and support capacity are configured. It will not use subscriptions or recurring billing.
 
 - Product overview and pricing draft:
   [Speak launch site](https://absentmindz.github.io/Speak/)

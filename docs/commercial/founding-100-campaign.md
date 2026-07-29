@@ -1,18 +1,17 @@
-# Founding 100 campaign
+# One-time launch offer
 
 ## Offer
 
-**Speak Pro — $39 one-time for the first 100 founding users.**
+**Speak for Windows — $21, paid once.**
 
-Planned public price after the founding group: **$59 one-time**. The offer is not live until checkout, terms, refund handling, and support capacity are configured.
+There are no subscription tiers, monthly fees, seat charges, or future price ladder. The offer is not live until checkout, terms, refund handling, and support capacity are configured.
 
-Founders receive:
+The supported launch option includes:
 
-- The official Pro convenience package when released.
-- Guided installation and model setup.
-- Priority support during the founding period.
-- Founder recognition and roadmap voting.
-- Direct feedback sessions and early access to separately developed Pro features.
+- The official Windows build and installer.
+- Guided installation and model setup guidance.
+- Launch-period support and feedback access.
+- Future official convenience updates that are separately developed from the Apache-2.0 Community source.
 
 The existing Apache-2.0 Community source remains free.
 
@@ -21,10 +20,10 @@ The existing Apache-2.0 Community source remains free.
 1. Recruit 25 hands-on beta users before opening payment.
 2. Personally onboard the first 10 and record every setup failure.
 3. Collect at least five permissioned testimonials with specific outcomes.
-4. Publish the one-minute demo and five short use-case clips.
-5. Open the Founding 100 checkout only after support/refund terms are ready.
+4. Publish the one-minute demo and a small set of focused use-case clips.
+5. Open the $21 checkout only after support/refund terms are ready.
 6. Track activation, first successful transcription, seven-day retention, referrals, and refunds.
-7. Raise the price to $59 after 100 purchases or the published deadline—whichever comes first.
+7. Keep the $21 one-time offer simple and avoid introducing recurring pricing.
 
 ## Use-case clips
 
@@ -38,11 +37,11 @@ The existing Apache-2.0 Community source remains free.
 
 ### Short launch post
 
-> Speak is private, local-first voice writing for Windows. Press one shortcut, talk naturally, and paste polished text into any application. The Community edition is free and open source. We are preparing 100 Founding Pro places at $39 one-time for guided setup, priority support, and future official convenience features.
+> Speak is private, local-first voice writing for Windows. Press one shortcut, talk naturally, and paste polished text into any application. The Community source is free and open source. We are preparing one simple $21 one-time supported launch option—no subscription required.
 
 ### Call to action
 
-> Try the free Community release, watch the one-minute demo, and join the Founding 100 interest list if you want hands-on setup and priority support.
+> Try the Community release, watch the one-minute demo, and join the $21 launch-interest list if you want the supported build and hands-on setup.
 
 ### Testimonial prompt
 

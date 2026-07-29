@@ -10,6 +10,6 @@ The rendered demo is `speak-demo.mp4`. It uses repository screenshots rather tha
 - 29–40s: Dictionary — teach names, products, and technical vocabulary.
 - 40–50s: Voice profile — corrections and progress stay visible.
 - 50–56s: Audio studio — optional local voice tools.
-- 56–60s: Community download and Founding 100 call to action.
+- 56–60s: Community download and simple $21 one-time launch call to action.
 
 Rebuild it with `marketing/render-demo.ps1`. The script needs FFmpeg and uses only tracked images and text overlays.

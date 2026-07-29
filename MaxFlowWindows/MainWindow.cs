@@ -3737,7 +3737,7 @@ public partial class MainWindow : Window, IComponentConnector
 
 	private void JoinFoundingButton_Click(object sender, RoutedEventArgs e)
 	{
-		OpenCommercialUri("Speak founding offer", AppConfig.Current.Commercial.CheckoutUrl);
+		OpenCommercialUri("Speak one-time launch offer", AppConfig.Current.Commercial.CheckoutUrl);
 	}
 
 	private void OpenSupportButton_Click(object sender, RoutedEventArgs e)
@@ -3836,7 +3836,7 @@ public partial class MainWindow : Window, IComponentConnector
 			"dictionary" => "Teach Speak the words, names, products, and symbols it should always write correctly.", 
 			"audio" => "Generate local voices through the CUDA worker, preview outputs, and keep models offloaded when idle.",
 			"settings" => "Tune the local recorder, model, device, and appearance.", 
-			"support" => "Community support, the planned Founding 100 offer, and trusted project links.",
+			"support" => "Community support, a simple $21 one-time launch offer, and trusted project links.",
 			_ => "Your voice, perfectly written.", 
 		};
 		UpdateTabButton(DictateTabButton, "dictate");
