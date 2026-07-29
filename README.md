@@ -47,29 +47,15 @@ Local engines process audio on the computer. Cloud STT and remote LLM
 polishing send audio or text to the configured provider. They are not the same
 privacy mode. See [PRIVACY.md](PRIVACY.md) for the exact boundaries.
 
-## Screenshots
+## Product preview
 
 <p align="center">
   <img src="docs/screenshots/main.png" alt="Speak dictation screen" width="780">
 </p>
 
-<p align="center">
-  <img src="docs/screenshots/history.png" alt="Speak history screen" width="780">
-</p>
+For the complete flow, watch the [one-minute product tour](docs/demo/speak-demo.mp4) instead of browsing a wall of screenshots.
 
-<p align="center">
-  <img src="docs/screenshots/voice-profile.png" alt="Speak voice profile" width="780">
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/dictionary.png" alt="Speak dictionary" width="780">
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/audio-studio.png" alt="Speak audio studio" width="780">
-</p>
-
-The repository screenshots contain demonstration data only. Do not attach
+The repository screenshot and demo contain demonstration data only. Do not attach
 screenshots containing real transcripts, usernames, paths, notifications, or
 taskbar details to an issue.
 
@@ -258,13 +244,14 @@ The launch site and pricing draft live in [`docs/index.html`](docs/index.html)
 and deploy through GitHub Pages. The complete seven-step commercial foundation
 is documented in [`docs/commercial/`](docs/commercial/README.md), including
 positioning, preliminary brand risk, checkout/licensing architecture, the
-Founding 100 campaign, and Microsoft Store readiness.
+one-time launch offer, and Microsoft Store readiness.
 
-Speak Community remains Apache-2.0 licensed. The planned Founding Pro offer is
-for official convenience, guided setup, priority support, and separately
-developed additions; it does not take existing Community features away. The
-$39 founding offer is not available for payment until a merchant account,
-refund terms, and server-side entitlement service are configured.
+Speak Community remains Apache-2.0 licensed. The planned $21 one-time
+supported option is for official convenience, guided setup, launch support,
+and separately developed additions; it does not take existing Community
+features away. It has no subscription or recurring billing and is not
+available for payment until a merchant account, refund terms, and server-side
+entitlement service are configured.
 
 ## License
 

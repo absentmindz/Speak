@@ -9,7 +9,7 @@ The desktop app now has provider-neutral commercial links under `Commercial` in 
   "Commercial": {
     "WebsiteUrl": "https://absentmindz.github.io/Speak/",
     "PricingUrl": "https://absentmindz.github.io/Speak/#pricing",
-    "CheckoutUrl": "https://absentmindz.github.io/Speak/#founding",
+    "CheckoutUrl": "https://absentmindz.github.io/Speak/#pricing",
     "SupportUrl": "https://github.com/absentmindz/Speak/issues",
     "LicensePortalUrl": ""
   }
@@ -18,7 +18,7 @@ The desktop app now has provider-neutral commercial links under `Commercial` in 
 
 Only public HTTPS links without embedded credentials are accepted. The application never stores a Lemon Squeezy API key, webhook secret, or signing secret.
 
-The default checkout route is an interest-registration page, not a payment claim. `LicensePortalUrl` remains empty until a real entitlement service exists.
+The default checkout route is an interest-registration page for the planned **$21 one-time** offer, not a payment claim. `LicensePortalUrl` remains empty until a real entitlement service exists. Do not describe payment as live until the hosted checkout, terms, and refund policy exist.
 
 ## Recommended production architecture
 
@@ -42,7 +42,7 @@ The default checkout route is an interest-registration page, not a payment claim
 ## Required decisions before live checkout
 
 - Merchant account owner and legal seller name.
-- Product/variant IDs and final price/currency.
+- Product/variant ID for the $21 USD one-time price.
 - Refund, support, and tax policy.
 - Privacy policy URL and terms for paid support.
 - Webhook host, signing-key custody, and data-retention period.

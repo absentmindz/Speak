@@ -146,7 +146,7 @@ def main() -> None:
         Slide(10, "PERSONAL DICTIONARY", "Teach Speak the words you use.", "Save names, products, technical terms, symbols, and preferred written forms so repeated corrections become unnecessary.", "docs/screenshots/dictionary.png", "Your vocabulary, on your machine"),
         Slide(9, "VOICE PROFILE", "See what the app has learned.", "Review corrections, usage, accuracy signals, and progress without turning your writing habits into an advertising profile.", "docs/screenshots/voice-profile.png", "Corrections and progress stay visible"),
         Slide(7, "OPTIONAL LOCAL AUDIO", "Go beyond dictation when you need to.", "Use separately configured local voice tools, preview outputs, and keep heavy models offloaded when idle.", "docs/screenshots/audio-studio.png", "Advanced tools—without changing the core promise"),
-        Slide(6, "SPEAK COMMUNITY + FOUNDING PRO", "Use your voice. Keep control.", "Download the Apache-2.0 Community release today. Join the planned Founding 100 for guided setup, priority support, and future official convenience features.", callout="github.com/absentmindz/Speak"),
+        Slide(6, "SPEAK FOR WINDOWS", "Use your voice. Keep control.", "A simple $21 one-time launch price for the official supported build. No subscriptions or recurring billing. The Apache-2.0 Community source stays open.", callout="One payment. Your voice. Your control."),
     ]
 
     with tempfile.TemporaryDirectory(prefix="speak-demo-") as temp_name:

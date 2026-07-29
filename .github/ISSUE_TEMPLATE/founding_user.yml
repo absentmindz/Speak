@@ -1,8 +1,8 @@
-name: Founding 100 interest
-description: Register public interest in the planned Speak Pro founding offer
+name: Speak launch access interest
+description: Register public interest in the planned $21 one-time Speak offer
 labels: []
 assignees: []
-title: "[Founding user] "
+title: "[Speak launch] "
 body:
   - type: markdown
     attributes:
@@ -31,9 +31,9 @@ body:
   - type: checkboxes
     id: expectations
     attributes:
-      label: Founding offer acknowledgement
+      label: Launch offer acknowledgement
       options:
-        - label: I understand the planned founding price is $39 one-time for the first 100 users, but payment is not open yet.
+        - label: I understand the planned price is $21 one-time with no subscription, but payment is not open yet.
           required: true
         - label: I understand the Community source remains available under Apache-2.0.
           required: true

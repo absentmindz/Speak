@@ -1106,17 +1106,17 @@
                         <ColumnDefinition Width="Auto" />
                       </Grid.ColumnDefinitions>
                       <StackPanel>
-                        <TextBlock Text="Speak Pro — Founding 100" FontSize="21" FontWeight="Bold" Foreground="{DynamicResource InkBrush}" />
-                        <TextBlock Text="Planned official convenience and support package" Foreground="{DynamicResource GoldBrush}" FontWeight="SemiBold" Margin="0,4,0,10" />
-                        <TextBlock Text="Guided setup, priority support, founder recognition, roadmap voting, and future proprietary convenience features. The existing Community source remains open under Apache-2.0." Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" />
+                        <TextBlock Text="Speak for Windows" FontSize="21" FontWeight="Bold" Foreground="{DynamicResource InkBrush}" />
+                        <TextBlock Text="One simple, supported desktop offer" Foreground="{DynamicResource GoldBrush}" FontWeight="SemiBold" Margin="0,4,0,10" />
+                        <TextBlock Text="Guided setup resources, priority launch support, and future official convenience updates. The existing Community source remains open under Apache-2.0." Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" />
                       </StackPanel>
                       <StackPanel Grid.Column="1" Margin="18,0,0,0" HorizontalAlignment="Right">
-                        <TextBlock Text="$39" FontFamily="{StaticResource DisplayFontFamily}" FontSize="28" FontWeight="Bold" Foreground="{DynamicResource InkBrush}" HorizontalAlignment="Right" />
-                        <TextBlock Text="one-time · first 100" Foreground="{DynamicResource MutedBrush}" FontSize="11" HorizontalAlignment="Right" />
+                        <TextBlock Text="$21" FontFamily="{StaticResource DisplayFontFamily}" FontSize="28" FontWeight="Bold" Foreground="{DynamicResource InkBrush}" HorizontalAlignment="Right" />
+                        <TextBlock Text="one-time · no subscriptions" Foreground="{DynamicResource MutedBrush}" FontSize="11" HorizontalAlignment="Right" />
                       </StackPanel>
                     </Grid>
                     <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,18,0,0">
-                      <Button Style="{StaticResource PrimaryButton}" Margin="0,0,10,0" Click="JoinFoundingButton_Click">Join founding list</Button>
+                      <Button Style="{StaticResource PrimaryButton}" Margin="0,0,10,0" Click="JoinFoundingButton_Click">Get launch access</Button>
                       <Button Style="{StaticResource RoundedButton}" Click="ViewPricingButton_Click">View pricing</Button>
                     </StackPanel>
                   </Grid>
