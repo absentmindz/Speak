@@ -1,7 +1,9 @@
 # Support
 
-Speak is a community pre-release project.
+Speak Community is an Apache-2.0 project. The planned paid support and Founding Pro offer are not live until checkout, service terms, and support capacity are configured.
 
+- Product overview and pricing draft:
+  [Speak launch site](https://absentmindz.github.io/Speak/)
 - Questions and reproducible bugs:
   [GitHub Issues](https://github.com/absentmindz/Speak/issues)
 - Feature ideas:

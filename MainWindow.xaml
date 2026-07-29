@@ -411,6 +411,9 @@
           </Button>
         </StackPanel>
         <StackPanel DockPanel.Dock="Bottom" HorizontalAlignment="Center">
+          <Button Name="SupportTabButton" Tag="support" Style="{StaticResource SideTabButton}" ToolTip="About, support, and Speak Pro" AutomationProperties.Name="About, support, and Speak Pro" Click="TabButton_Click">
+            <TextBlock Text="&#xE897;" FontFamily="Segoe MDL2 Assets" FontSize="17" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Button>
           <Border Width="38" Height="38" Background="{DynamicResource ChromeBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="19" ToolTip="Local storage">
             <TextBlock Text="●" Foreground="{DynamicResource MutedBrush}" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
@@ -1062,6 +1065,87 @@
                 <Button Name="StopLoadedModelButton" Margin="0,20,0,0" Style="{StaticResource ResourceKey=RoundedButton}" Click="StopLoadedModelButton_Click">Stop Loaded Model</Button>
               </StackPanel>
             </Grid>
+          </Border>
+        </Grid>
+        <Grid Name="SupportPage" Visibility="Collapsed">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="1.15*" />
+            <ColumnDefinition Width="0.85*" />
+          </Grid.ColumnDefinitions>
+          <Border Grid.Column="0" Style="{StaticResource PremiumPanel}" Padding="24" Margin="0,0,18,0">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+              <StackPanel>
+                <TextBlock Text="COMMUNITY &amp; PRO" Foreground="{DynamicResource GoldBrush}" FontSize="10" FontWeight="Bold" />
+                <TextBlock Text="Speak for Windows" FontFamily="{StaticResource DisplayFontFamily}" FontSize="34" FontWeight="Bold" Foreground="{DynamicResource InkBrush}" Margin="0,4,0,6" />
+                <TextBlock Text="Private, local-first voice writing. Talk naturally and get polished text in any Windows application." Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" FontSize="14" Margin="0,0,0,22" />
+
+                <Border Background="{DynamicResource SoftBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="10" Padding="18">
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                      <TextBlock Text="Speak Community" FontSize="21" FontWeight="Bold" Foreground="{DynamicResource InkBrush}" />
+                      <TextBlock Text="Free and Apache-2.0 licensed" Foreground="{DynamicResource GoldBrush}" FontWeight="SemiBold" Margin="0,4,0,10" />
+                      <TextBlock Text="Global-hotkey dictation, local Whisper support, optional cloud transcription, transcript polishing, history, dictionary, correction learning, voice profiles, and local TTS integrations." Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="1" Text="$0" FontFamily="{StaticResource DisplayFontFamily}" FontSize="28" FontWeight="Bold" Foreground="{DynamicResource InkBrush}" Margin="18,0,0,0" />
+                  </Grid>
+                </Border>
+
+                <Border Background="{DynamicResource PremiumSoftBrush}" BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1" CornerRadius="10" Padding="18" Margin="0,16,0,0">
+                  <Grid>
+                    <Grid.RowDefinitions>
+                      <RowDefinition Height="Auto" />
+                      <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <StackPanel>
+                        <TextBlock Text="Speak Pro — Founding 100" FontSize="21" FontWeight="Bold" Foreground="{DynamicResource InkBrush}" />
+                        <TextBlock Text="Planned official convenience and support package" Foreground="{DynamicResource GoldBrush}" FontWeight="SemiBold" Margin="0,4,0,10" />
+                        <TextBlock Text="Guided setup, priority support, founder recognition, roadmap voting, and future proprietary convenience features. The existing Community source remains open under Apache-2.0." Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="1" Margin="18,0,0,0" HorizontalAlignment="Right">
+                        <TextBlock Text="$39" FontFamily="{StaticResource DisplayFontFamily}" FontSize="28" FontWeight="Bold" Foreground="{DynamicResource InkBrush}" HorizontalAlignment="Right" />
+                        <TextBlock Text="one-time · first 100" Foreground="{DynamicResource MutedBrush}" FontSize="11" HorizontalAlignment="Right" />
+                      </StackPanel>
+                    </Grid>
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,18,0,0">
+                      <Button Style="{StaticResource PrimaryButton}" Margin="0,0,10,0" Click="JoinFoundingButton_Click">Join founding list</Button>
+                      <Button Style="{StaticResource RoundedButton}" Click="ViewPricingButton_Click">View pricing</Button>
+                    </StackPanel>
+                  </Grid>
+                </Border>
+
+                <TextBlock Text="The checkout and license portal are provider-neutral configuration points. Speak never embeds a payment-provider secret in the desktop client." Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" FontSize="12" Margin="0,16,0,0" />
+              </StackPanel>
+            </ScrollViewer>
+          </Border>
+
+          <Border Grid.Column="1" Style="{StaticResource PremiumPanel}" Padding="24">
+            <StackPanel>
+              <TextBlock Text="ABOUT &amp; SUPPORT" Foreground="{DynamicResource GoldBrush}" FontSize="10" FontWeight="Bold" />
+              <TextBlock Text="Trusted links" FontFamily="{StaticResource DisplayFontFamily}" FontSize="30" FontWeight="Bold" Foreground="{DynamicResource InkBrush}" Margin="0,4,0,18" />
+              <Border Background="{DynamicResource SoftBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="10" Padding="16">
+                <StackPanel>
+                  <TextBlock Text="Installed version" FontWeight="Bold" Foreground="{DynamicResource InkBrush}" />
+                  <TextBlock Name="SupportVersionTextBlock" Text="Speak" Foreground="{DynamicResource MutedBrush}" Margin="0,6,0,0" />
+                </StackPanel>
+              </Border>
+              <Button Margin="0,16,0,0" Style="{StaticResource PrimaryButton}" Click="OpenWebsiteButton_Click">Open Speak website</Button>
+              <Button Margin="0,10,0,0" Style="{StaticResource RoundedButton}" Click="OpenSupportButton_Click">Community support</Button>
+              <Button Margin="0,10,0,0" Style="{StaticResource RoundedButton}" Click="OpenSourceButton_Click">View source on GitHub</Button>
+              <Button Name="LicensePortalButton" Margin="0,10,0,0" Style="{StaticResource RoundedButton}" Click="OpenLicensePortalButton_Click">Manage Pro license</Button>
+              <TextBlock Name="LicensePortalStatusTextBlock" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" FontSize="12" Margin="0,12,0,0" />
+              <Border Background="{DynamicResource SoftBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="10" Padding="14" Margin="0,20,0,0">
+                <TextBlock Text="Speak has no advertising telemetry. Local engines keep audio on this computer; configured cloud providers receive only the data sent to them." Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" FontSize="12" />
+              </Border>
+            </StackPanel>
           </Border>
         </Grid>
       </Grid>

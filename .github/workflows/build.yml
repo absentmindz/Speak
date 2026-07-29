@@ -92,7 +92,31 @@ jobs:
         shell: pwsh
         run: |
           python -m compileall -q tools
+          python -m py_compile marketing/render_demo.py
           if ($LASTEXITCODE -ne 0) { throw "Python syntax validation failed." }
+
+      - name: Validate commercial launch and MSIX readiness assets
+        shell: pwsh
+        run: |
+          foreach ($required in @(
+            "docs/index.html",
+            "docs/site.css",
+            "docs/commercial/README.md",
+            "marketing/render-demo.ps1",
+            "packaging/msix/AppxManifest.xml.template"
+          )) {
+            if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+              throw "Missing commercial launch asset: $required"
+            }
+          }
+          python -c "from html.parser import HTMLParser; from pathlib import Path; p=HTMLParser(); p.feed(Path('docs/index.html').read_text(encoding='utf-8')); p.close()"
+          if ($LASTEXITCODE -ne 0) { throw "Launch-site HTML validation failed." }
+          ./packaging/msix/build-msix.ps1 `
+            -PackageIdentityName "Speak.Test" `
+            -Publisher "CN=Speak & Test" `
+            -PublisherDisplayName "Speak & contributors" `
+            -Version "1.5.2.0" `
+            -ValidateOnly
 
       - name: Test Python worker security contracts
         run: python -m unittest discover -s tools/tests -p "test_*.py" -v

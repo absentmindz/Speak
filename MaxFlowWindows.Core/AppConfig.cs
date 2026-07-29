@@ -12,6 +12,7 @@ public sealed class AppConfig
     public LlmPolishConfig LLMPolish { get; init; } = new();
     public RecordingConfig Recording { get; init; } = new();
     public UiConfig UI { get; init; } = new();
+    public CommercialConfig Commercial { get; init; } = new();
     public LoggingConfig Logging { get; init; } = new();
 
     private static AppConfig? _instance;
@@ -109,6 +110,7 @@ public sealed class AppConfig
             LLMPolish = config.LLMPolish,
             Recording = config.Recording,
             UI = config.UI,
+            Commercial = config.Commercial,
             Logging = config.Logging
         };
     }
@@ -181,6 +183,15 @@ public sealed class UiConfig
     public bool MinimizeToTray { get; init; } = true;
     public bool StartWithWindows { get; init; }
     public string DictationShortcut { get; init; } = "Ctrl+Win";
+}
+
+public sealed class CommercialConfig
+{
+    public string WebsiteUrl { get; init; } = "https://absentmindz.github.io/Speak/";
+    public string PricingUrl { get; init; } = "https://absentmindz.github.io/Speak/#pricing";
+    public string CheckoutUrl { get; init; } = "https://absentmindz.github.io/Speak/#founding";
+    public string SupportUrl { get; init; } = "https://github.com/absentmindz/Speak/issues";
+    public string LicensePortalUrl { get; init; } = "";
 }
 
 public sealed class LoggingConfig

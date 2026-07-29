@@ -1,0 +1,48 @@
+name: Setup and integration interest
+description: Request public follow-up about planned Speak setup or integration services
+labels: []
+assignees: []
+title: "[Services] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This issue is public. Describe the workflow only. Do not include transcripts, health details, email addresses, payment information, API keys, usernames, private repository names, or local file paths. This form registers interest; it is not a purchase or a binding quote.
+  - type: dropdown
+    id: service
+    attributes:
+      label: Service area
+      options:
+        - Remote setup
+        - GPU and local-model optimization
+        - Custom workflow or integration
+        - Not sure yet
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Explain what you want Speak to do without sharing private data.
+      placeholder: I want a verified local transcription setup and a reliable dictation shortcut on Windows 11.
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: General environment
+      options:
+        - Windows 11 with NVIDIA GPU
+        - Windows 11 without NVIDIA GPU
+        - Windows 10 with NVIDIA GPU
+        - Windows 10 without NVIDIA GPU
+        - Other or unknown
+    validations:
+      required: true
+  - type: checkboxes
+    id: acknowledgement
+    attributes:
+      label: Public-interest acknowledgement
+      options:
+        - label: I understand this public issue is only an initial service inquiry and contains no private information.
+          required: true

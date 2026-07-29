@@ -5,7 +5,7 @@
 <h1 align="center">Speak</h1>
 
 <p align="center">
-  Privacy-conscious dictation and text-to-speech for Windows.
+  Private, local-first voice writing for Windows. Talk naturally and get polished text in any application.
 </p>
 
 <p align="center">
@@ -251,6 +251,20 @@ if (container.IsRegistered<ILogger>()) { ... }
 ### Duplicate registration
 
 Registering the same service type twice throws `InvalidOperationException`.
+
+## Website and commercial launch
+
+The launch site and pricing draft live in [`docs/index.html`](docs/index.html)
+and deploy through GitHub Pages. The complete seven-step commercial foundation
+is documented in [`docs/commercial/`](docs/commercial/README.md), including
+positioning, preliminary brand risk, checkout/licensing architecture, the
+Founding 100 campaign, and Microsoft Store readiness.
+
+Speak Community remains Apache-2.0 licensed. The planned Founding Pro offer is
+for official convenience, guided setup, priority support, and separately
+developed additions; it does not take existing Community features away. The
+$39 founding offer is not available for payment until a merchant account,
+refund terms, and server-side entitlement service are configured.
 
 ## License
 

@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Speak is private, local-first voice writing for Windows. Dictate naturally and get polished text in any application.">
+  <meta name="theme-color" content="#111214">
+  <title>Speak — private voice writing for Windows</title>
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+  <header class="nav shell">
+    <a class="brand" href="#top" aria-label="Speak home">
+      <img src="assets/speak-logo.png" alt="" width="42" height="42">
+      <span>Speak</span>
+    </a>
+    <nav aria-label="Main navigation">
+      <a href="#how">How it works</a>
+      <a href="#privacy">Privacy</a>
+      <a href="#pricing">Pricing</a>
+      <a href="https://github.com/absentmindz/Speak">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero shell">
+      <div class="hero-copy">
+        <p class="eyebrow">PRIVATE · LOCAL-FIRST · WINDOWS</p>
+        <h1>Talk naturally.<br><span>Get polished text.</span></h1>
+        <p class="lede">Speak turns your voice into useful writing in Outlook, ChatGPT, VS Code, browsers, and any other Windows application—without forcing your everyday dictation into an ad-funded cloud service.</p>
+        <div class="actions">
+          <a class="button primary" href="https://github.com/absentmindz/Speak/releases/latest">Download for Windows</a>
+          <a class="button secondary" href="#demo">Watch the one-minute demo</a>
+        </div>
+        <p class="micro">Current release: v0.5.2 · Windows 10/11 x64 · Apache-2.0 Community edition</p>
+      </div>
+      <div class="hero-visual">
+        <div class="window-glow"></div>
+        <img src="screenshots/main.png" alt="Speak dictation screen showing recording controls and text output">
+      </div>
+    </section>
+
+    <section class="trust-strip" aria-label="Product principles">
+      <div class="shell trust-grid">
+        <span>Global hotkey</span>
+        <span>Local Whisper support</span>
+        <span>Optional cloud STT</span>
+        <span>No advertising telemetry</span>
+      </div>
+    </section>
+
+    <section id="how" class="section shell">
+      <div class="section-heading">
+        <p class="eyebrow">ONE SHORTCUT. THREE STEPS.</p>
+        <h2>Voice writing that stays out of your way.</h2>
+      </div>
+      <div class="steps">
+        <article><b>01</b><h3>Press the shortcut</h3><p>Start or stop dictation from anywhere in Windows with a configurable global hotkey.</p></article>
+        <article><b>02</b><h3>Speak naturally</h3><p>Use local Whisper or deliberately configured cloud transcription. You choose the privacy boundary.</p></article>
+        <article><b>03</b><h3>Paste polished text</h3><p>Clean up the transcript, apply your dictionary and corrections, then copy or paste it into the active app.</p></article>
+      </div>
+    </section>
+
+    <section id="demo" class="section demo-section">
+      <div class="shell demo-grid">
+        <div>
+          <p class="eyebrow">60-SECOND TOUR</p>
+          <h2>See the complete workflow.</h2>
+          <p>Dictation, history, voice profile, personal dictionary, and local audio tools in one quiet desktop app.</p>
+          <p class="micro">Silent, captioned demonstration—no audio is required. <a href="demo/speak-demo.mp4">Open the MP4 directly.</a></p>
+        </div>
+        <video controls preload="metadata" poster="screenshots/main.png" aria-label="One-minute captioned Speak product demonstration">
+          <source src="demo/speak-demo.mp4" type="video/mp4">
+          Your browser does not support embedded video. View the screenshots below instead.
+        </video>
+      </div>
+    </section>
+
+    <section class="section shell gallery" aria-label="Speak product screenshots">
+      <figure><img src="screenshots/history.png" alt="Speak local transcript history"><figcaption>Local transcript history</figcaption></figure>
+      <figure><img src="screenshots/dictionary.png" alt="Speak personal dictionary"><figcaption>Your names and vocabulary</figcaption></figure>
+      <figure><img src="screenshots/voice-profile.png" alt="Speak voice profile and accuracy statistics"><figcaption>Voice profile and learning</figcaption></figure>
+      <figure><img src="screenshots/audio-studio.png" alt="Speak local audio studio"><figcaption>Optional local audio studio</figcaption></figure>
+    </section>
+
+    <section id="privacy" class="section privacy-section">
+      <div class="shell privacy-grid">
+        <div>
+          <p class="eyebrow">PRIVACY YOU CAN EXPLAIN</p>
+          <h2>Local when you choose local.</h2>
+        </div>
+        <div class="privacy-copy">
+          <p>Local Whisper and local text-to-speech workers run on your computer. Optional cloud transcription and remote polishing send only the audio or text you deliberately submit to the provider you configure.</p>
+          <p>Speak does not configure advertising analytics. History, corrections, recordings, logs, and crash reports remain under Speak's local data directory unless you export or share them.</p>
+          <a href="https://github.com/absentmindz/Speak/blob/main/PRIVACY.md">Read the exact privacy boundaries →</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="pricing" class="section shell">
+      <div class="section-heading centered">
+        <p class="eyebrow">SIMPLE, HONEST PRICING</p>
+        <h2>Free software first. Paid convenience second.</h2>
+        <p>The existing Community source stays Apache-2.0 licensed. The planned Pro offer pays for official convenience, guided setup, support, and future proprietary additions—not for taking away today’s open features.</p>
+      </div>
+      <div class="pricing-grid">
+        <article class="price-card">
+          <p class="plan">COMMUNITY</p>
+          <p class="price">$0</p>
+          <p class="price-note">Free and open source</p>
+          <ul>
+            <li>Global-hotkey dictation</li>
+            <li>Local Whisper integration</li>
+            <li>Optional cloud STT and LLM polish</li>
+            <li>History, dictionary, corrections, voice profile</li>
+            <li>Community support</li>
+          </ul>
+          <a class="button secondary full" href="https://github.com/absentmindz/Speak/releases/latest">Download Community</a>
+        </article>
+        <article id="founding" class="price-card featured">
+          <p class="badge">PLANNED · FIRST 100 USERS</p>
+          <p class="plan">FOUNDING PRO</p>
+          <p class="price">$39</p>
+          <p class="price-note">One-time founding price · planned public price $59</p>
+          <ul>
+            <li>Everything in Community</li>
+            <li>Guided installation and model setup</li>
+            <li>Priority support</li>
+            <li>Founder recognition and roadmap voting</li>
+            <li>Future official convenience features</li>
+          </ul>
+          <a class="button primary full" href="https://github.com/absentmindz/Speak/issues/new?template=founding_user.yml">Join the founding list</a>
+          <p class="micro center">Interest registration only. Checkout is not live yet. Do not post private information in the public issue.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section shell services">
+      <div class="section-heading">
+        <p class="eyebrow">NEED HANDS-ON HELP?</p>
+        <h2>Setup and integration services.</h2>
+      </div>
+      <div class="service-grid">
+        <article><h3>Remote setup</h3><p class="service-price">$99–$149</p><p>Installation, local model paths, hotkey, microphone, and a verified first transcription.</p></article>
+        <article><h3>GPU optimization</h3><p class="service-price">$199</p><p>CUDA/runtime diagnosis, model selection, keep-alive tuning, and performance verification.</p></article>
+        <article><h3>Custom workflow</h3><p class="service-price">$500–$2,000</p><p>Private API integration, specialized vocabulary, deployment automation, or team workflow design.</p></article>
+      </div>
+      <div class="services-action">
+        <a class="button secondary" href="https://github.com/absentmindz/Speak/issues/new?template=commercial_services.yml">Request setup help</a>
+        <p class="micro">Public interest form only. Do not include credentials, transcripts, private repository names, or personal contact details.</p>
+      </div>
+    </section>
+
+    <section class="cta">
+      <div class="shell cta-inner">
+        <div><p class="eyebrow">READY TO TRY IT?</p><h2>Use your voice. Keep control.</h2></div>
+        <div class="actions"><a class="button primary" href="https://github.com/absentmindz/Speak/releases/latest">Get Speak v0.5.2</a><a class="button secondary" href="https://github.com/absentmindz/Speak">View the source</a></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="shell footer">
+    <div><b>Speak</b><span>Private voice writing for Windows.</span></div>
+    <div><a href="https://github.com/absentmindz/Speak/blob/main/PRIVACY.md">Privacy</a><a href="https://github.com/absentmindz/Speak/blob/main/SUPPORT.md">Support</a><a href="https://github.com/absentmindz/Speak/blob/main/LICENSE">License</a></div>
+  </footer>
+</body>
+</html>
