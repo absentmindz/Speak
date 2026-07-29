@@ -1,0 +1,39 @@
+name: Founding 100 interest
+description: Register public interest in the planned Speak Pro founding offer
+labels: []
+assignees: []
+title: "[Founding user] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping shape Speak. This issue is public. Do not include private transcripts, health details, email addresses, payment information, API keys, usernames, or local file paths. This is interest registration only; checkout is not live yet.
+  - type: dropdown
+    id: primary-use
+    attributes:
+      label: Primary use case
+      options:
+        - Email and professional writing
+        - Coding and technical writing
+        - Accessibility or reduced keyboard use
+        - Private local dictation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: What outcome would make Speak valuable to you?
+      description: Describe the workflow, not private content.
+      placeholder: I want to dictate technical messages with project-specific vocabulary and paste polished text into my editor.
+    validations:
+      required: true
+  - type: checkboxes
+    id: expectations
+    attributes:
+      label: Founding offer acknowledgement
+      options:
+        - label: I understand the planned founding price is $39 one-time for the first 100 users, but payment is not open yet.
+          required: true
+        - label: I understand the Community source remains available under Apache-2.0.
+          required: true

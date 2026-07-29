@@ -754,6 +754,7 @@ public partial class MainWindow : Window, IComponentConnector
 			RefreshHistorySearchNow();
 		};
 		InitializeSettings();
+		InitializeCommercialPage();
 		InstallAudioWorkspacePage();
 		RenderModes();
 		SelectMode(DictationMode.Presets[0]);
@@ -3708,6 +3709,88 @@ public partial class MainWindow : Window, IComponentConnector
 		}
 	}
 
+	private void InitializeCommercialPage()
+	{
+		Version? version = typeof(MainWindow).Assembly.GetName().Version;
+		SupportVersionTextBlock.Text = version == null
+			? "Speak version unavailable"
+			: $"Speak {version.Major}.{version.Minor}.{version.Build}";
+
+		bool hasLicensePortal = ExternalUriPolicy.TryCreateSafeHttpsUri(
+			AppConfig.Current.Commercial.LicensePortalUrl,
+			out _);
+		LicensePortalButton.IsEnabled = hasLicensePortal;
+		LicensePortalStatusTextBlock.Text = hasLicensePortal
+			? "Your configured license portal opens in the default browser."
+			: "License management will appear here after the checkout provider and server-side entitlement service are configured.";
+	}
+
+	private void OpenWebsiteButton_Click(object sender, RoutedEventArgs e)
+	{
+		OpenCommercialUri("Speak website", AppConfig.Current.Commercial.WebsiteUrl);
+	}
+
+	private void ViewPricingButton_Click(object sender, RoutedEventArgs e)
+	{
+		OpenCommercialUri("Speak pricing", AppConfig.Current.Commercial.PricingUrl);
+	}
+
+	private void JoinFoundingButton_Click(object sender, RoutedEventArgs e)
+	{
+		OpenCommercialUri("Speak founding offer", AppConfig.Current.Commercial.CheckoutUrl);
+	}
+
+	private void OpenSupportButton_Click(object sender, RoutedEventArgs e)
+	{
+		OpenCommercialUri("Speak support", AppConfig.Current.Commercial.SupportUrl);
+	}
+
+	private void OpenSourceButton_Click(object sender, RoutedEventArgs e)
+	{
+		OpenCommercialUri("Speak source", "https://github.com/absentmindz/Speak");
+	}
+
+	private void OpenLicensePortalButton_Click(object sender, RoutedEventArgs e)
+	{
+		OpenCommercialUri("Speak license portal", AppConfig.Current.Commercial.LicensePortalUrl);
+	}
+
+	private void OpenCommercialUri(string label, string configuredValue)
+	{
+		if (!ExternalUriPolicy.TryCreateSafeHttpsUri(configuredValue, out Uri? uri)
+			|| uri == null)
+		{
+			StatusTextBlock.Text = $"{label} is not configured";
+			System.Windows.MessageBox.Show(
+				this,
+				$"{label} is not configured with a safe public HTTPS address.",
+				"Link unavailable",
+				MessageBoxButton.OK,
+				MessageBoxImage.Information);
+			return;
+		}
+
+		try
+		{
+			Process.Start(new ProcessStartInfo
+			{
+				FileName = uri.AbsoluteUri,
+				UseShellExecute = true
+			});
+			StatusTextBlock.Text = $"Opened {label}";
+		}
+		catch (Win32Exception exception)
+		{
+			AppLog.Warn($"Could not open {label}.", exception);
+			StatusTextBlock.Text = $"Could not open {label}";
+		}
+		catch (InvalidOperationException exception)
+		{
+			AppLog.Warn($"Could not open {label}.", exception);
+			StatusTextBlock.Text = $"Could not open {label}";
+		}
+	}
+
 	private void TabButton_Click(object sender, RoutedEventArgs e)
 	{
 		if (sender is System.Windows.Controls.Button { Tag: string tag })
@@ -3733,6 +3816,7 @@ public partial class MainWindow : Window, IComponentConnector
 			_audioPage.Visibility = ((!(tab == "audio")) ? Visibility.Collapsed : Visibility.Visible);
 		}
 		SettingsPage.Visibility = ((!(tab == "settings")) ? Visibility.Collapsed : Visibility.Visible);
+		SupportPage.Visibility = ((!(tab == "support")) ? Visibility.Collapsed : Visibility.Visible);
 		TextBlock headerTitleTextBlock = HeaderTitleTextBlock;
 		headerTitleTextBlock.Text = tab switch
 		{
@@ -3741,6 +3825,7 @@ public partial class MainWindow : Window, IComponentConnector
 			"dictionary" => "Dictionary", 
 			"audio" => "🎙️ Audio Studio",
 			"settings" => "Settings", 
+			"support" => "About & Support",
 			_ => "Speak", 
 		};
 		headerTitleTextBlock = HeaderSubtitleTextBlock;
@@ -3751,6 +3836,7 @@ public partial class MainWindow : Window, IComponentConnector
 			"dictionary" => "Teach Speak the words, names, products, and symbols it should always write correctly.", 
 			"audio" => "Generate local voices through the CUDA worker, preview outputs, and keep models offloaded when idle.",
 			"settings" => "Tune the local recorder, model, device, and appearance.", 
+			"support" => "Community support, the planned Founding 100 offer, and trusted project links.",
 			_ => "Your voice, perfectly written.", 
 		};
 		UpdateTabButton(DictateTabButton, "dictate");
@@ -3759,6 +3845,7 @@ public partial class MainWindow : Window, IComponentConnector
 		UpdateTabButton(DictionaryTabButton, "dictionary");
 		UpdateTabButton(_audioTabButton, "audio");
 		UpdateTabButton(SettingsTabButton, "settings");
+		UpdateTabButton(SupportTabButton, "support");
 		AnimatePageIn(tab switch
 		{
 			"history" => HistoryPage, 
@@ -3766,6 +3853,7 @@ public partial class MainWindow : Window, IComponentConnector
 			"dictionary" => DictionaryPage, 
 			"audio" => _audioPage ?? SettingsPage,
 			"settings" => SettingsPage, 
+			"support" => SupportPage,
 			_ => DictatePage, 
 		});
 	}

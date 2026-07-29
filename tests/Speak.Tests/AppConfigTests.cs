@@ -19,6 +19,11 @@ public sealed class AppConfigTests
         Assert.Empty(config.Paths.ModelsRoot);
         Assert.Empty(config.Paths.WorkspaceRoot);
         Assert.False(config.UI.AutoLearnCorrections);
+        Assert.StartsWith("https://", config.Commercial.WebsiteUrl);
+        Assert.StartsWith("https://", config.Commercial.PricingUrl);
+        Assert.StartsWith("https://", config.Commercial.CheckoutUrl);
+        Assert.StartsWith("https://", config.Commercial.SupportUrl);
+        Assert.Empty(config.Commercial.LicensePortalUrl);
 
         string[] configuredPaths =
         {
@@ -73,6 +78,42 @@ public sealed class AppConfigTests
                     string.IsNullOrEmpty(value) || value.EndsWith("_API_KEY", StringComparison.Ordinal),
                     $"Configuration property '{property.Name}' must not contain a credential.");
             }
+        }
+    }
+
+    [Fact]
+    public void CommercialLinksCanBeOverriddenWithoutEmbeddingCredentials()
+    {
+        string testRoot = Path.Combine(
+            Path.GetTempPath(),
+            "Speak-AppConfigCommercialTests-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(testRoot);
+
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(testRoot, "appsettings.json"),
+                """
+                {
+                  "Commercial": {
+                    "WebsiteUrl": "https://example.com/speak",
+                    "PricingUrl": "https://example.com/speak/pricing",
+                    "CheckoutUrl": "https://checkout.example.com/speak",
+                    "SupportUrl": "https://example.com/speak/support",
+                    "LicensePortalUrl": "https://example.com/speak/licenses"
+                  }
+                }
+                """);
+
+            AppConfig config = AppConfig.Load(testRoot);
+
+            Assert.Equal("https://example.com/speak", config.Commercial.WebsiteUrl);
+            Assert.Equal("https://checkout.example.com/speak", config.Commercial.CheckoutUrl);
+            Assert.Equal("https://example.com/speak/licenses", config.Commercial.LicensePortalUrl);
+        }
+        finally
+        {
+            Directory.Delete(testRoot, recursive: true);
         }
     }
 
