@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "baseline": "speak-complete-offline-cpu",
+  "python": {
+    "version": "3.14.6",
+    "fileName": "python-3.14.6-embed-amd64.zip",
+    "sourceUrl": "https://www.python.org/ftp/python/3.14.6/python-3.14.6-embed-amd64.zip",
+    "sizeBytes": 12570832,
+    "sha256": "df901e84a896ff1ee720ad03377e0c8d8c2244fda79808aeeaff6316df1cb75c",
+    "license": {
+      "relativePath": "LICENSE.txt",
+      "sizeBytes": 35407,
+      "sha256": "935cf13e19f8c31b497d20b05d73623431a226b230c3599bc30fa3348979bc68"
+    },
+    "sigstore": {
+      "fileName": "python-3.14.6-embed-amd64.zip.sigstore",
+      "sourceUrl": "https://www.python.org/ftp/python/3.14.6/python-3.14.6-embed-amd64.zip.sigstore",
+      "sizeBytes": 5679,
+      "sha256": "23c62a9eefa1dda27ade2eb62f0e76649a520ff62089ea1aa6ec0325b5347e24",
+      "identity": "hugo@python.org",
+      "oidcIssuer": "https://github.com/login/oauth"
+    }
+  },
+  "edgeTts": {
+    "version": "7.2.8",
+    "pythonVersion": "3.14.6",
+    "requirementsFile": "tools/requirements-edge-tts.lock.txt",
+    "wheelManifestFile": "packaging/edge-tts-wheelhouse.manifest.json",
+    "license": "LGPL-3.0-only AND MIT",
+    "service": "Microsoft Bing speech service",
+    "requiresInternet": true
+  },
+  "whisperCpu": {
+    "requirementsFile": "tools/requirements-whisper-cpu.lock.txt",
+    "wheelManifestFile": "packaging/complete/whisper-cpu-wheelhouse.manifest.json"
+  },
+  "whisperBase": {
+    "modelId": "whisper-base",
+    "fileName": "base.pt",
+    "sourceUrl": "https://openaipublic.azureedge.net/main/whisper/models/ed3a0b6b1c0edf879ad9b11b1af5a0e6ab5db9205f891f668f8b0e6c6326e34e/base.pt",
+    "sizeBytes": 145262807,
+    "sha256": "ed3a0b6b1c0edf879ad9b11b1af5a0e6ab5db9205f891f668f8b0e6c6326e34e"
+  },
+  "ffmpeg": {
+    "version": "n8.1.2-31-g8c9502e9b0-20260729",
+    "license": "LGPL-3.0-or-later",
+    "archive": {
+      "fileName": "ffmpeg-n8.1.2-31-g8c9502e9b0-win64-lgpl-shared-8.1.zip",
+      "sourceUrl": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-07-29-13-36/ffmpeg-n8.1.2-31-g8c9502e9b0-win64-lgpl-shared-8.1.zip",
+      "binRelativePath": "ffmpeg-n8.1.2-31-g8c9502e9b0-win64-lgpl-shared-8.1/bin",
+      "sizeBytes": 70510969,
+      "sha256": "3d12bbb45ccdce95435480292c47c2f6c186b91942d0a757c833d326a9d868f9"
+    },
+    "files": [
+      {
+        "relativePath": "avcodec-62.dll",
+        "sizeBytes": 70875136,
+        "sha256": "8fd6577682878dad7a93ad6cefb22c6b4bbfd4befa60d20b5fd6d0317771726a"
+      },
+      {
+        "relativePath": "avdevice-62.dll",
+        "sizeBytes": 3699712,
+        "sha256": "4be09a21b0e5fce90f36371e7a8306095b76d59c0f6cf96f5ad559693c09e5fd"
+      },
+      {
+        "relativePath": "avfilter-11.dll",
+        "sizeBytes": 29816320,
+        "sha256": "c827fb447b711fffb9e805ffc74b7745a60d12891b675789e8524d9793c38f55"
+      },
+      {
+        "relativePath": "avformat-62.dll",
+        "sizeBytes": 22070784,
+        "sha256": "3ff02a6e84fd1612fd22b37bfab19796aae588e1b938fdde1bb379ac09de62a8"
+      },
+      {
+        "relativePath": "avutil-60.dll",
+        "sizeBytes": 2937856,
+        "sha256": "dc6b041df69b496954bc5890d837adc4b49679679ceb5866489f78e00ed7c8b8"
+      },
+      {
+        "relativePath": "ffmpeg.exe",
+        "sizeBytes": 542208,
+        "sha256": "2aa4be738e9c5290f8dc79f5fe5e394c2c7e6f482994e8cb5b783deb160250f3"
+      },
+      {
+        "relativePath": "swresample-6.dll",
+        "sizeBytes": 723968,
+        "sha256": "09d039625223cd22145c839ea84da350a4aff2c35ca7676c4f8fbf5eb040445e"
+      },
+      {
+        "relativePath": "swscale-9.dll",
+        "sizeBytes": 12570624,
+        "sha256": "e077648db38f62ff9eb96e505e4cd0f256f478dbba8b960eaa8cb826094b5579"
+      }
+    ]
+  },
+  "vcRedist": {
+    "version": "14.51.36247.0",
+    "minimumInstalledVersion": "14.51.36247.0",
+    "fileName": "VC_redist.x64.exe",
+    "sourceUrl": "https://aka.ms/vc14/vc_redist.x64.exe",
+    "sizeBytes": 18731856,
+    "sha256": "843068991daaa1f73ad9f6239bce4d0f6a07a51f18c37ea2a867e9beca71295c",
+    "signature": {
+      "subjectRegex": "CN=Microsoft Corporation",
+      "issuerRegex": "CN=Microsoft Code Signing PCA 2024"
+    }
+  }
+}

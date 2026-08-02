@@ -1,0 +1,19 @@
+Speak Complete Offline Installer includes a pinned FFmpeg payload for local Whisper audio decoding.
+
+Bundled build:
+  ffmpeg version n8.1.2-31-g8c9502e9b0-20260729
+  BtbN FFmpeg-Builds tag autobuild-2026-07-29-13-36
+  Archive SHA-256: 3d12bbb45ccdce95435480292c47c2f6c186b91942d0a757c833d326a9d868f9
+
+This shared build reports no --enable-gpl flag and is redistributed under
+LGPL-3.0-or-later. The accompanying FFmpeg-LGPL-3.0.txt contains the license
+text. Speak does not modify FFmpeg; it invokes ffmpeg.exe as a separate process.
+
+Upstream project and corresponding build/source information:
+  https://ffmpeg.org/
+  https://git.ffmpeg.org/ffmpeg.git
+  https://github.com/BtbN/FFmpeg-Builds/tree/autobuild-2026-07-29-13-36
+
+The complete-installer builder verifies the immutable archive digest, each
+staged executable/DLL size and SHA-256, and the exact `ffmpeg -version` line
+before embedding the payload.

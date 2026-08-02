@@ -1,0 +1,32 @@
+# Offline, CPU-only Whisper runtime for the complete installer.
+#
+# This is intentionally a flat exact-pin lock. build-complete-installer.ps1
+# accepts only a pre-audited wheel cache whose manifest lists every wheel's
+# filename, source URL, exact byte count, and SHA-256. Do not add indexes,
+# URLs, editable installs, TTS packages, CUDA wheels, or model downloads here.
+
+certifi==2026.6.17
+charset-normalizer==3.4.7
+colorama==0.4.6
+filelock==3.29.5
+fsspec==2026.6.0
+idna==3.18
+Jinja2==3.1.6
+llvmlite==0.48.0
+MarkupSafe==3.0.3
+more-itertools==11.1.0
+mpmath==1.3.0
+networkx==3.6.1
+numba==0.66.0
+numpy==2.4.6
+openai-whisper==20250625
+packaging==26.2
+regex==2026.6.28
+requests==2.34.2
+setuptools==83.0.0
+sympy==1.14.0
+tiktoken==0.13.0
+torch==2.13.0+cpu
+tqdm==4.69.1
+typing_extensions==4.16.0
+urllib3==2.7.0

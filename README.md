@@ -26,8 +26,11 @@
 
 The installer is self-contained, so running Speak does not require the .NET
 SDK. Groq cloud transcription does not require local Python, but it does
-require an API key. Local Whisper and TTS are not bundled: they require
-separate Python environments, dependencies, and model downloads.
+require an API key. Standard packages include a relocation-safe command runtime
+for Microsoft Edge TTS; voice text is still sent to Microsoft's online speech
+service. Local Whisper and model-backed TTS engines require separate runtimes
+and model downloads unless the complete offline installer is used for the
+Whisper base CPU baseline.
 
 > Speak is currently a pre-release source project. Review the security and
 > privacy notes before using it with sensitive audio or text.
@@ -39,6 +42,8 @@ separate Python environments, dependencies, and model downloads.
   are configured.
 - Optional Groq cloud transcription.
 - Local Qwen3, Tortoise, and Chatterbox text-to-speech integrations.
+- Microsoft Edge neural voices through a bundled command runtime; internet
+  access is required and selected text is processed by Microsoft's service.
 - Optional local or remote LLM transcript polishing.
 - Local history, dictionary, correction learning, and voice-profile tools.
 - A token-protected loopback REST integration that is disabled by default.
@@ -63,8 +68,9 @@ taskbar details to an issue.
 
 - Windows 10 version 1809 or newer, or Windows 11, on x64 hardware.
 - The .NET 8 SDK to build from source. Published artifacts are self-contained.
-- For local Whisper/TTS: compatible Python environments, model weights, and
-  any required CUDA/FFmpeg dependencies.
+- For local Whisper and model-backed TTS: compatible Python environments,
+  model weights, and any required CUDA/FFmpeg dependencies. The bundled Edge
+  TTS command runtime does not include a local voice model and requires internet.
 - For cloud transcription: a provider API key stored in an environment
   variable, never in the repository.
 

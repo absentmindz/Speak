@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/absentmindz/Speak/blob/main/packaging/complete/whisper-cpu-wheelhouse.manifest.schema.json",
+  "title": "Audited Speak Whisper CPU wheelhouse manifest",
+  "description": "The complete installer accepts only a pre-audited, flat offline wheelhouse. Every cached package artifact must be listed with its immutable filename, package version, exact byte count, SHA-256, and source URL.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "pythonVersion",
+    "requirementsSha256",
+    "files"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "pythonVersion": {
+      "const": "3.14.6"
+    },
+    "requirementsSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "relativePath",
+          "distribution",
+          "version",
+          "sourceUrl",
+          "sizeBytes",
+          "sha256"
+        ],
+        "properties": {
+          "relativePath": {
+            "type": "string",
+            "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._+\\-]+\\.(?:whl)$"
+          },
+          "distribution": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]+$"
+          },
+          "version": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sourceUrl": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    }
+  }
+}

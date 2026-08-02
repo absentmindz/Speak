@@ -1,14 +1,12 @@
-Speak includes an FFmpeg binary for local Whisper audio decoding.
+Speak's standard installer does not include an FFmpeg binary.
 
-Bundled build:
-  FFmpeg N-124421-g180a10647d-20260509
-  Configuration includes --enable-gpl and --enable-version3.
+Local Whisper audio decoding requires a compatible FFmpeg installation supplied
+separately by the user or environment. The separate Speak Complete Offline
+Installer bundles its own pinned FFmpeg payload and includes the corresponding
+license and provenance notices under packaging/complete/.
 
-FFmpeg is distributed under the GNU General Public License version 3 for this
-build. The accompanying FFmpeg-GPL-3.0.txt contains the license text.
-
-Project and corresponding source:
+FFmpeg project and source:
   https://ffmpeg.org/
   https://git.ffmpeg.org/ffmpeg.git
 
-Speak does not modify FFmpeg. FFmpeg is invoked as a separate executable.
+Speak invokes FFmpeg as a separate executable and does not modify FFmpeg.

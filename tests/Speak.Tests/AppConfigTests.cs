@@ -18,12 +18,19 @@ public sealed class AppConfigTests
         Assert.Equal("{AppDir}", config.Paths.ToolsRoot);
         Assert.Empty(config.Paths.ModelsRoot);
         Assert.Empty(config.Paths.WorkspaceRoot);
+        Assert.Equal("whisper-local", config.Transcription.DefaultEngine);
+        Assert.Equal("whisper-base", config.Transcription.DefaultModel);
+        Assert.Equal("auto", config.Transcription.DefaultDevice);
+        Assert.Equal("{AppDir}\\runtime\\whisper\\python.exe", config.Transcription.WhisperPythonPath);
+        Assert.Equal("{AppDir}\\tools\\speak_worker.py", config.Transcription.WhisperWrapperPath);
+        Assert.Equal("{ModelsRoot}\\whisper\\base.pt", config.Transcription.WhisperModelPath);
         Assert.False(config.UI.AutoLearnCorrections);
         Assert.StartsWith("https://", config.Commercial.WebsiteUrl);
         Assert.StartsWith("https://", config.Commercial.PricingUrl);
         Assert.StartsWith("https://", config.Commercial.CheckoutUrl);
         Assert.StartsWith("https://", config.Commercial.SupportUrl);
         Assert.Empty(config.Commercial.LicensePortalUrl);
+        Assert.Empty(config.TTS.EdgeTtsExecutablePath);
 
         string[] configuredPaths =
         {
@@ -32,8 +39,11 @@ public sealed class AppConfigTests
             config.Paths.WorkspaceRoot,
             config.Paths.CacheRoot,
             config.Transcription.WhisperPythonPath,
+            config.Transcription.WhisperWrapperPath,
             config.Transcription.WhisperModelPath,
+            config.Transcription.WhisperServerScriptPath,
             config.TTS.ComfyUIPythonPath,
+            config.TTS.EdgeTtsExecutablePath,
             config.TTS.QwenTtsCustomVoiceModelPath,
             config.TTS.QwenTtsBaseModelPath,
             config.TTS.TortoiseModelDir
@@ -57,26 +67,34 @@ public sealed class AppConfigTests
     public void PublishedTemplateContainsNoAbsolutePathsOrSecretValues()
     {
         string repositoryRoot = FindRepositoryRoot();
-        string templatePath = Path.Combine(repositoryRoot, "appsettings.template.json");
-        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(templatePath));
-
-        foreach (JsonProperty property in EnumerateProperties(document.RootElement))
+        string[] configurationPaths =
         {
-            if (property.Value.ValueKind != JsonValueKind.String)
-            {
-                continue;
-            }
+            Path.Combine(repositoryRoot, "appsettings.template.json"),
+            Path.Combine(repositoryRoot, "packaging", "appsettings.portable.json"),
+            Path.Combine(repositoryRoot, "packaging", "complete", "appsettings.complete.json")
+        };
 
-            string value = property.Value.GetString() ?? "";
-            Assert.DoesNotMatch(AbsoluteWindowsPath, value);
-
-            if (Regex.IsMatch(
-                    property.Name,
-                    "(?i)(api.?key|token|secret|password|credential)"))
+        foreach (string configurationPath in configurationPaths)
+        {
+            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(configurationPath));
+            foreach (JsonProperty property in EnumerateProperties(document.RootElement))
             {
-                Assert.True(
-                    string.IsNullOrEmpty(value) || value.EndsWith("_API_KEY", StringComparison.Ordinal),
-                    $"Configuration property '{property.Name}' must not contain a credential.");
+                if (property.Value.ValueKind != JsonValueKind.String)
+                {
+                    continue;
+                }
+
+                string value = property.Value.GetString() ?? "";
+                Assert.DoesNotMatch(AbsoluteWindowsPath, value);
+
+                if (Regex.IsMatch(
+                        property.Name,
+                        "(?i)(api.?key|token|secret|password|credential)"))
+                {
+                    Assert.True(
+                        string.IsNullOrEmpty(value) || value.EndsWith("_API_KEY", StringComparison.Ordinal),
+                        $"Configuration property '{property.Name}' must not contain a credential.");
+                }
             }
         }
     }
@@ -118,6 +136,35 @@ public sealed class AppConfigTests
     }
 
     [Fact]
+    public void ExistingWhisperConfigurationIsPreservedWhenLoaded()
+    {
+        using var directory = new TestDirectory();
+        File.WriteAllText(
+            directory.Combine("appsettings.json"),
+            """
+            {
+              "Transcription": {
+                "DefaultEngine": "whisper-local",
+                "DefaultModel": "whisper-large-v3",
+                "DefaultDevice": "cuda",
+                "WhisperPythonPath": "legacy-python.exe",
+                "WhisperWrapperPath": "legacy-worker.py",
+                "WhisperModelPath": "legacy-model.pt"
+              }
+            }
+            """);
+
+        AppConfig config = AppConfig.Load(directory.Path);
+
+        Assert.Equal("whisper-local", config.Transcription.DefaultEngine);
+        Assert.Equal("whisper-large-v3", config.Transcription.DefaultModel);
+        Assert.Equal("cuda", config.Transcription.DefaultDevice);
+        Assert.EndsWith("legacy-python.exe", config.Transcription.WhisperPythonPath, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith("legacy-worker.py", config.Transcription.WhisperWrapperPath, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith("legacy-model.pt", config.Transcription.WhisperModelPath, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void DocumentationTemplateIsNeverLoadedAsRuntimeConfiguration()
     {
         string testRoot = Path.Combine(
@@ -149,8 +196,10 @@ public sealed class AppConfigTests
             AppConfig config = AppConfig.Load(testRoot);
 
             Assert.Equal("whisper-local", config.Transcription.DefaultEngine);
-            Assert.Equal("whisper-large-v3", config.Transcription.DefaultModel);
-            Assert.Equal("cuda", config.Transcription.DefaultDevice);
+            Assert.Equal("whisper-base", config.Transcription.DefaultModel);
+            Assert.Equal("auto", config.Transcription.DefaultDevice);
+            Assert.NotEmpty(config.Transcription.WhisperPythonPath);
+            Assert.NotEmpty(config.Transcription.WhisperWrapperPath);
             Assert.NotEmpty(config.Transcription.WhisperModelPath);
             Assert.Equal("qwen3-customvoice-1.7b", config.TTS.DefaultEngine);
             Assert.Equal("Aiden", config.TTS.DefaultVoice);
@@ -159,6 +208,32 @@ public sealed class AppConfigTests
         finally
         {
             Directory.Delete(testRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void PortableInstallConfigurationsDefaultToLocalWhisperBaseOnAuto()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string[] configurationPaths =
+        {
+            Path.Combine(repositoryRoot, "appsettings.template.json"),
+            Path.Combine(repositoryRoot, "packaging", "appsettings.portable.json"),
+            Path.Combine(repositoryRoot, "packaging", "complete", "appsettings.complete.json")
+        };
+
+        foreach (string configurationPath in configurationPaths)
+        {
+            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(configurationPath));
+            JsonElement transcription = document.RootElement.GetProperty("Transcription");
+
+            Assert.Equal("whisper-local", transcription.GetProperty("DefaultEngine").GetString());
+            Assert.Equal("whisper-base", transcription.GetProperty("DefaultModel").GetString());
+            Assert.Equal("auto", transcription.GetProperty("DefaultDevice").GetString());
+            Assert.Equal("{AppDir}\\runtime\\whisper\\python.exe", transcription.GetProperty("WhisperPythonPath").GetString(), ignoreCase: true);
+            Assert.Equal("{AppDir}\\tools\\speak_worker.py", transcription.GetProperty("WhisperWrapperPath").GetString(), ignoreCase: true);
+            Assert.Equal("{ModelsRoot}\\whisper\\base.pt", transcription.GetProperty("WhisperModelPath").GetString(), ignoreCase: true);
+            Assert.Equal("", document.RootElement.GetProperty("TTS").GetProperty("EdgeTtsExecutablePath").GetString());
         }
     }
 

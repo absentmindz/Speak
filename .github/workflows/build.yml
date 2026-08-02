@@ -41,7 +41,7 @@ jobs:
 
   build:
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 120
 
     steps:
       - name: Check out source
@@ -221,12 +221,45 @@ jobs:
           "ISCC_PATH=$($iscc.FullName)" | Out-File `
             -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
+      - name: Set up packaging Python 3.14.6
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14.6"
+
+      - name: Prepare audited Standard and Complete packaging inputs
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check --only-binary=:all: sigstore==4.5.0
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not install the pinned Sigstore verifier."
+          }
+          $python = (Get-Command python.exe -ErrorAction Stop).Source
+          $sigstore = (Get-Command sigstore.exe -ErrorAction Stop).Source
+          $pythonVersion = @(& $python -c "import sys; print('.'.join(map(str, sys.version_info[:3])))" 2>&1) -join "`n"
+          if ($LASTEXITCODE -ne 0 -or $pythonVersion.Trim() -cne "3.14.6") {
+            throw "Packaging Python must be exactly 3.14.6. Found: $pythonVersion"
+          }
+          $sigstoreVersion = @(& $sigstore --version 2>&1) -join "`n"
+          if ($LASTEXITCODE -ne 0 -or $sigstoreVersion -notmatch '(?m)\b4\.5\.0\b') {
+            throw "Sigstore must be exactly 4.5.0. Found: $sigstoreVersion"
+          }
+          $cache = Join-Path $env:RUNNER_TEMP "speak-edge-source-cache"
+          ./packaging/prepare-edge-tts-source-cache.ps1 `
+            -DestinationRoot $cache `
+            -IncludeCompleteInstallerSources
+          "PACKAGING_PYTHON=$python" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "SIGSTORE_PATH=$sigstore" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "SPEAK_SOURCE_CACHE=$cache" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Build and verify release assets through canonical packaging
         shell: pwsh
         run: >-
           ./packaging/build-packages.ps1
           -NoRestore
           -IsccPath "$env:ISCC_PATH"
+          -SourceCacheRoot "$env:SPEAK_SOURCE_CACHE"
+          -BuildPythonPath "$env:PACKAGING_PYTHON"
+          -SigstorePath "$env:SIGSTORE_PATH"
 
       - name: Upload test results
         if: always()
@@ -249,7 +282,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     permissions:
       contents: read
       id-token: write
@@ -294,7 +327,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [build, attest]
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     permissions:
       contents: write
 
@@ -333,6 +366,7 @@ jobs:
             "/Project/PropertyGroup/VersionPrefix").InnerText.Trim()
           $assets = @(
             "./release-artifact/Speak-$version-Setup.exe",
+            "./release-artifact/Speak-$version-Complete-Offline-Setup.exe",
             "./release-artifact/Speak-$version-win-x64-portable.zip",
             "./release-artifact/Speak-$version.spdx.json",
             "./release-artifact/SHA256SUMS.txt"

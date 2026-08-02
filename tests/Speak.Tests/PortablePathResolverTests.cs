@@ -6,6 +6,18 @@ namespace Speak.Tests;
 public sealed class PortablePathResolverTests
 {
     [Fact]
+    public void BaseOnlyWhisperRootIsRecognized()
+    {
+        using TestDirectory directory = new();
+        string modelsRoot = directory.Combine("models");
+        string whisperDirectory = System.IO.Path.Combine(modelsRoot, "whisper");
+        Directory.CreateDirectory(whisperDirectory);
+        File.WriteAllText(System.IO.Path.Combine(whisperDirectory, "base.pt"), "test");
+
+        Assert.True(PortablePathResolver.HasKnownModelLayout(modelsRoot));
+    }
+
+    [Fact]
     public void ValidMachineModelRootWinsOverInvalidCurrentUserPath()
     {
         using TestDirectory directory = new();

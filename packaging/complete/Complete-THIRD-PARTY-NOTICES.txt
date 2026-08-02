@@ -1,0 +1,51 @@
+Speak Complete Offline CPU Baseline — Third-Party Notices
+
+This file is an inventory aid, not a substitute for the authoritative license
+texts included with the corresponding components.
+
+1. CPython 3.14.6 embedded runtime
+   - Project: Python Software Foundation CPython
+   - Source: https://www.python.org/ftp/python/3.14.6/
+   - License: Python Software Foundation License
+   - Included license: Runtime\Whisper\LICENSE.txt
+
+2. Offline Python package sets
+   - Whisper distributions and versions: Support\requirements-whisper-cpu.lock.txt
+   - Edge TTS distributions and versions: Support\requirements-edge-tts.lock.txt
+   - Exact wheel provenance and SHA-256 values:
+     Support\whisper-cpu-wheelhouse.manifest.json and
+     Support\edge-tts-wheelhouse.manifest.json
+   - The installed Edge subset, CPython license, and every Edge package license
+     file are bound by Support\edge-tts-runtime.inventory.json.
+   - edge-tts 7.2.8 is primarily LGPL-3.0-only; its srt_composer.py is MIT.
+   - Package license/notice files remain inside each installed package and its
+     *.dist-info directory under Runtime\Whisper\Lib\site-packages.
+   - The customer runtime does not include pip or path-bound console launchers.
+   - The Edge command runtime installs offline, but speech synthesis sends the
+     selected text to Microsoft's online Bing speech service.
+
+3. OpenAI Whisper and the Whisper base checkpoint
+   - Project: https://github.com/openai/whisper
+   - Checkpoint provenance and SHA-256: Support\sources.lock.json
+   - License: MIT
+   - Included license: Licenses\Whisper-MIT-LICENSE.txt
+
+4. FFmpeg shared Windows build
+   - Project: https://ffmpeg.org/
+   - Build/source provenance: Licenses\FFmpeg-NOTICE.txt and
+     Support\sources.lock.json
+   - License for this pinned non-GPL shared build: LGPL-3.0-or-later
+   - Included license: Licenses\FFmpeg-LGPL-3.0.txt
+   - Speak invokes ffmpeg.exe as a separate process and does not modify FFmpeg.
+
+5. Microsoft Visual C++ Redistributable x64
+   - Publisher: Microsoft Corporation
+   - Exact version, Authenticode policy, source URL, and SHA-256:
+     Support\sources.lock.json
+   - Redistribution and use remain subject to Microsoft's applicable license
+     terms for the Visual C++ Redistributable.
+
+The baseline intentionally excludes CUDA, NVIDIA runtime libraries,
+model-backed local TTS runtimes/models, large Whisper checkpoints, and
+package-management tools. It includes only the small Edge TTS command runtime;
+Microsoft neural voice synthesis still requires internet access.

@@ -24,10 +24,16 @@ from pathlib import Path
 from types import ModuleType
 from typing import Callable, Iterator, Sequence
 
+# CPython's embeddable distribution runs in isolated mode and does not always
+# add the script directory to sys.path. Add only this reviewed tools directory
+# so sibling worker modules remain importable without enabling user site paths.
+TOOLS_ROOT = Path(__file__).resolve().parent
+if str(TOOLS_ROOT) not in sys.path:
+    sys.path.insert(0, str(TOOLS_ROOT))
+
 from worker_security import ensure_loopback_host
 
 
-TOOLS_ROOT = Path(__file__).resolve().parent
 TargetMain = Callable[..., int | None]
 
 

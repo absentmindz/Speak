@@ -109,7 +109,8 @@ public static class PortablePathResolver
 			return false;
 		}
 
-		return File.Exists(Path.Combine(path, "whisper", "large-v3.pt"))
+		return File.Exists(Path.Combine(path, "whisper", "base.pt"))
+			|| File.Exists(Path.Combine(path, "whisper", "large-v3.pt"))
 			|| HasQwenModel(path, "Qwen3-TTS-12Hz-1.7B-CustomVoice")
 			|| HasQwenModel(path, "Qwen3-TTS-12Hz-1.7B-Base");
 	}

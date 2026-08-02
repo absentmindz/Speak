@@ -19,6 +19,17 @@ public sealed class TtsVoiceOption
 		"Vivian"
 	};
 
+	private static readonly (string Id, string Name)[] EdgeVoiceNames =
+	{
+		("en-US-BrianNeural", "Brian — warm male"),
+		("en-US-AndrewNeural", "Andrew — narration male"),
+		("en-US-GuyNeural", "Guy — clear male"),
+		("en-US-RogerNeural", "Roger — mature male"),
+		("en-US-AvaNeural", "Ava — polished female"),
+		("en-US-AriaNeural", "Aria — general female"),
+		("en-US-JennyNeural", "Jenny — friendly female")
+	};
+
 	public string Id { get; set; } = "";
 
 	public string Name { get; set; } = "";
@@ -33,6 +44,15 @@ public sealed class TtsVoiceOption
 			{
 				Id = voice,
 				Name = voice.Replace("_", " "),
+				EngineId = engineId
+			}).ToList();
+		}
+		if (engineId.Equals("edge-tts", StringComparison.OrdinalIgnoreCase))
+		{
+			return EdgeVoiceNames.Select((voice) => new TtsVoiceOption
+			{
+				Id = voice.Id,
+				Name = voice.Name,
 				EngineId = engineId
 			}).ToList();
 		}

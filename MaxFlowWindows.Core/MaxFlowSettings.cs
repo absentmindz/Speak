@@ -18,21 +18,61 @@ public sealed class MaxFlowSettings
 		}
 	}
 
+	// Older appsettings files can contain empty Whisper paths. Only those empty
+	// values fall back to the current portable layout; non-empty legacy/user
+	// configuration is retained for upgrades.
+	private static string ModelsRoot => string.IsNullOrWhiteSpace(_config.Paths.ModelsRoot)
+		? PortablePathResolver.ResolveModelsRoot("")
+		: _config.Paths.ModelsRoot;
+
+	private static string DefaultTranscriptionModelId => FirstNonEmpty(
+		_config.Transcription.DefaultModel,
+		"whisper-base");
+
+	private static string DefaultWhisperDeviceId => FirstNonEmpty(
+		_config.Transcription.DefaultDevice,
+		"auto");
+
+	private static string DefaultWhisperPythonPath => FirstNonEmpty(
+		_config.Transcription.WhisperPythonPath,
+		PortablePathResolver.ExpandPath("{AppDir}\\runtime\\whisper\\python.exe", ModelsRoot));
+
+	private static string DefaultWhisperWrapperPath => FirstNonEmpty(
+		_config.Transcription.WhisperWrapperPath,
+		PortablePathResolver.ExpandPath("{AppDir}\\tools\\speak_worker.py", ModelsRoot));
+
+	private static string DefaultWhisperModelPath => FirstNonEmpty(
+		_config.Transcription.WhisperModelPath,
+		Path.Combine(ModelsRoot, "whisper", "base.pt"));
+
+	private static string FirstNonEmpty(params string[] values)
+	{
+		foreach (string value in values)
+		{
+			if (!string.IsNullOrWhiteSpace(value))
+			{
+				return value;
+			}
+		}
+
+		return "";
+	}
+
 	public string LocaleId { get; set; } = "en-US";
 
 	public string EngineId { get; set; } = "whisper-local";
 
-	public string TranscriptionModelId { get; set; } = _config.Transcription.DefaultModel;
+	public string TranscriptionModelId { get; set; } = DefaultTranscriptionModelId;
 
-	public string WhisperDeviceId { get; set; } = _config.Transcription.DefaultDevice;
+	public string WhisperDeviceId { get; set; } = DefaultWhisperDeviceId;
 
 	public int ModelKeepAliveMinutes { get; set; } = _config.Transcription.ModelKeepAliveMinutes;
 
-	public string WhisperPythonPath { get; set; } = _config.Transcription.WhisperPythonPath;
+	public string WhisperPythonPath { get; set; } = DefaultWhisperPythonPath;
 
-	public string WhisperWrapperPath { get; set; } = _config.Transcription.WhisperWrapperPath;
+	public string WhisperWrapperPath { get; set; } = DefaultWhisperWrapperPath;
 
-	public string WhisperModelPath { get; set; } = _config.Transcription.WhisperModelPath;
+	public string WhisperModelPath { get; set; } = DefaultWhisperModelPath;
 
 	public int AudioInputDeviceNumber { get; set; }
 

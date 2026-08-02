@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -12,6 +14,29 @@ if str(TOOLS_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLS_ROOT))
 
 import speak_worker  # noqa: E402
+
+
+class SpeakWorkerBootstrapTests(unittest.TestCase):
+    def test_isolated_python_can_import_sibling_worker_modules(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-I",
+                    str(TOOLS_ROOT / "speak_worker.py"),
+                    "whisper",
+                    "--help",
+                ],
+                cwd=temporary_directory,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("usage: speak_worker.py whisper", result.stdout)
+        self.assertIn("--model-dir", result.stdout)
 
 
 class SpeakWorkerDispatchTests(unittest.TestCase):

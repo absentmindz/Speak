@@ -43,8 +43,11 @@ secrets, healthcare systems, or other sensitive applications.
 
 Cloud STT uploads recorded audio to the configured transcription provider.
 Remote LLM polishing sends transcript text and its draft output to the
-configured LLM endpoint. Those providers receive and process the submitted
-data under their own terms and privacy policies.
+configured LLM endpoint. Microsoft Edge TTS sends the text selected for speech
+to Microsoft's Bing speech service. It uses an unofficial consumer endpoint,
+not an Azure Speech resource, and may be rate-limited, changed, or unavailable
+without an Azure-style service guarantee. Those providers receive and process
+the submitted data under their own terms and privacy policies.
 
 Cloud features require deliberate configuration. API key values are read from
 environment variables and should never be placed in source control,

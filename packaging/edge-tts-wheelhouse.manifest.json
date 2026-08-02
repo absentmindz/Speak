@@ -1,0 +1,243 @@
+{
+  "schemaVersion": 1,
+  "pythonVersion": "3.14.6",
+  "requirementsSha256": "ad775d0bd59ad41dfc841db53c85ef53eb4295130b3202e7fab998ca11725d67",
+  "files": [
+    {
+      "relativePath": "aiohappyeyeballs-2.7.1-py3-none-any.whl",
+      "distribution": "aiohappyeyeballs",
+      "version": "2.7.1",
+      "sourceUrl": "https://files.pythonhosted.org/packages/71/43/1947f06babed6b3f1d7f38b0c767f52df66bfb2bc10b468c4a7de9eceff2/aiohappyeyeballs-2.7.1-py3-none-any.whl",
+      "projectUrl": "https://github.com/aio-libs/aiohappyeyeballs/issues",
+      "licenseDeclared": "PSF-2.0",
+      "sizeBytes": 15038,
+      "sha256": "9243213661e29250eb41368e5daa826fc017156c3b8a11440826b2e3ed376472",
+      "licenseFiles": [
+        {
+          "relativePath": "licenses/LICENSE",
+          "sizeBytes": 13936,
+          "sha256": "3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf"
+        }
+      ]
+    },
+    {
+      "relativePath": "aiohttp-3.14.1-cp314-cp314-win_amd64.whl",
+      "distribution": "aiohttp",
+      "version": "3.14.1",
+      "sourceUrl": "https://files.pythonhosted.org/packages/f0/2b/13e8d741a9ec5db7d900c060554cf8352ab85e44e2a4469ebb9d377bda17/aiohttp-3.14.1-cp314-cp314-win_amd64.whl",
+      "projectUrl": "https://github.com/aio-libs/aiohttp",
+      "licenseDeclared": "Apache-2.0 AND MIT",
+      "sizeBytes": 485001,
+      "sha256": "af8b4b81a960eeaf1234971ac3cd0ba5901f3cd42eae42a46b4d089a8b492719",
+      "licenseFiles": [
+        {
+          "relativePath": "licenses/LICENSE.txt",
+          "sizeBytes": 11514,
+          "sha256": "ea195371abbf66a39eef56600955d1137c2c196dc144ffec46b6ea530ce70044"
+        },
+        {
+          "relativePath": "licenses/vendor/llhttp/LICENSE",
+          "sizeBytes": 1091,
+          "sha256": "279012e02a10acfd59a3f2d8f13a497332535d871c2b27c89988985b06a3a438"
+        }
+      ]
+    },
+    {
+      "relativePath": "aiosignal-1.4.0-py3-none-any.whl",
+      "distribution": "aiosignal",
+      "version": "1.4.0",
+      "sourceUrl": "https://files.pythonhosted.org/packages/fb/76/641ae371508676492379f16e2fa48f4e2c11741bd63c48be4b12a6b09cba/aiosignal-1.4.0-py3-none-any.whl",
+      "projectUrl": "https://github.com/aio-libs/aiosignal/actions",
+      "licenseDeclared": "Apache-2.0",
+      "sizeBytes": 7490,
+      "sha256": "053243f8b92b990551949e63930a839ff0cf0b0ebbe0597b0f3fb19e1a0fe82e",
+      "licenseFiles": [
+        {
+          "relativePath": "licenses/LICENSE",
+          "sizeBytes": 11332,
+          "sha256": "6fd5243e92dd7f98ec69c7ac377728e74905709ff527a5bf98d6d0263c04f5b6"
+        }
+      ]
+    },
+    {
+      "relativePath": "attrs-26.1.0-py3-none-any.whl",
+      "distribution": "attrs",
+      "version": "26.1.0",
+      "sourceUrl": "https://files.pythonhosted.org/packages/64/b4/17d4b0b2a2dc85a6df63d1157e028ed19f90d4cd97c36717afef2bc2f395/attrs-26.1.0-py3-none-any.whl",
+      "projectUrl": "https://github.com/python-attrs/attrs",
+      "licenseDeclared": "MIT",
+      "sizeBytes": 67548,
+      "sha256": "c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309",
+      "licenseFiles": [
+        {
+          "relativePath": "licenses/LICENSE",
+          "sizeBytes": 1109,
+          "sha256": "882115c95dfc2af1eeb6714f8ec6d5cbcabf667caff8729f42420da63f714e9f"
+        }
+      ]
+    },
+    {
+      "relativePath": "certifi-2026.6.17-py3-none-any.whl",
+      "distribution": "certifi",
+      "version": "2026.6.17",
+      "sourceUrl": "https://files.pythonhosted.org/packages/ef/2f/c5464532e965badff2f4c4c1a3a83f5697f0d7c407ed0cda44aaa99bb451/certifi-2026.6.17-py3-none-any.whl",
+      "projectUrl": "https://github.com/certifi/python-certifi",
+      "licenseDeclared": "MPL-2.0",
+      "sizeBytes": 133289,
+      "sha256": "2227dcbaafe0d2f59279d1762ddddc37783ed4354594f194ffc31d20f41fc3db",
+      "licenseFiles": [
+        {
+          "relativePath": "licenses/LICENSE",
+          "sizeBytes": 989,
+          "sha256": "e93716da6b9c0d5a4a1df60fe695b370f0695603d21f6f83f053e42cfc10caf7"
+        }
+      ]
+    },
+    {
+      "relativePath": "edge_tts-7.2.8-py3-none-any.whl",
+      "distribution": "edge-tts",
+      "version": "7.2.8",
+      "sourceUrl": "https://files.pythonhosted.org/packages/8c/2b/a8cb687b92a2690d2ad171f0c2fd1c8f18690363cca7618bab2bbe4cdf2b/edge_tts-7.2.8-py3-none-any.whl",
+      "projectUrl": "https://github.com/rany2/edge-tts/issues",
+      "licenseDeclared": "LGPL-3.0-only AND MIT",
+      "sizeBytes": 31026,
+      "sha256": "361fe48ce7ef613adbe30f664e3765dd71029c6cb57427279eff8ad6df2eb211",
+      "licenseFiles": [
+        {
+          "relativePath": "licenses/LICENSE",
+          "sizeBytes": 9041,
+          "sha256": "3613045a46a5bce847f80eadbbf013e4260ef19d728ffd061d61e792689ec3a8"
+        }
+      ]
+    },
+    {
+      "relativePath": "frozenlist-1.8.0-cp314-cp314-win_amd64.whl",
+      "distribution": "frozenlist",
+      "version": "1.8.0",
+      "sourceUrl": "https://files.pythonhosted.org/packages/59/ad/9caa9b9c836d9ad6f067157a531ac48b7d36499f5036d4141ce78c230b1b/frozenlist-1.8.0-cp314-cp314-win_amd64.whl",
+      "projectUrl": "https://github.com/aio-libs/frozenlist/actions",
+      "licenseDeclared": "Apache-2.0",
+      "sizeBytes": 44330,
+      "sha256": "3e0761f4d1a44f1d1a47996511752cf3dcec5bbdd9cc2b4fe595caf97754b7a0",
+      "licenseFiles": [
+        {
+          "relativePath": "licenses/LICENSE",
+          "sizeBytes": 11332,
+          "sha256": "6fd5243e92dd7f98ec69c7ac377728e74905709ff527a5bf98d6d0263c04f5b6"
+        }
+      ]
+    },
+    {
+      "relativePath": "idna-3.18-py3-none-any.whl",
+      "distribution": "idna",
+      "version": "3.18",
+      "sourceUrl": "https://files.pythonhosted.org/packages/1e/5e/d4e9f1a599fb8e573b7b87160658329fbf28d19eac2718f51fc3def3aa5a/idna-3.18-py3-none-any.whl",
+      "projectUrl": "https://github.com/kjd/idna/blob/master/HISTORY.md",
+      "licenseDeclared": "BSD-3-Clause",
+      "sizeBytes": 65455,
+      "sha256": "7f952cbe720b688055e3f87de14f5c3e5fdaa8bc3928985c4077ca689de849a2",
+      "licenseFiles": [
+        {
+          "relativePath": "licenses/LICENSE.md",
+          "sizeBytes": 1541,
+          "sha256": "1a9a4f0e3d479a27240ddd59a9137a66ab4a0f9dfdc8ca6188cc0bfd85187f04"
+        }
+      ]
+    },
+    {
+      "relativePath": "multidict-6.7.1-cp314-cp314-win_amd64.whl",
+      "distribution": "multidict",
+      "version": "6.7.1",
+      "sourceUrl": "https://files.pythonhosted.org/packages/e0/bf/52f25716bbe93745595800f36fb17b73711f14da59ed0bb2eba141bc9f0f/multidict-6.7.1-cp314-cp314-win_amd64.whl",
+      "projectUrl": "https://github.com/aio-libs/multidict/actions",
+      "licenseDeclared": "Apache-2.0",
+      "sizeBytes": 45074,
+      "sha256": "5e01429a929600e7dab7b166062d9bb54a5eed752384c7384c968c2afab8f50f",
+      "licenseFiles": [
+        {
+          "relativePath": "licenses/LICENSE",
+          "sizeBytes": 611,
+          "sha256": "93d11a968e2f0f36373c40811ff6d20e173f58c3cab5884cd6617bbfd795492a"
+        }
+      ]
+    },
+    {
+      "relativePath": "propcache-0.5.2-cp314-cp314-win_amd64.whl",
+      "distribution": "propcache",
+      "version": "0.5.2",
+      "sourceUrl": "https://files.pythonhosted.org/packages/61/d2/45c9defbaa1ea297035d9d4cce9e8f80daafbf19319c6007f157c6256ea9/propcache-0.5.2-cp314-cp314-win_amd64.whl",
+      "projectUrl": "https://github.com/aio-libs/propcache/actions?query=branch:master",
+      "licenseDeclared": "Apache-2.0",
+      "sizeBytes": 42373,
+      "sha256": "81e3a30b0bb60caa22033dd0f8a3618d1d67356212514f62c57db75cb0ef410c",
+      "licenseFiles": [
+        {
+          "relativePath": "licenses/LICENSE",
+          "sizeBytes": 11358,
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "relativePath": "licenses/NOTICE",
+          "sizeBytes": 609,
+          "sha256": "56d6ac6c8105c0a51304c21db060e361af9a8ea0af9a75c239c28b5d13693838"
+        }
+      ]
+    },
+    {
+      "relativePath": "tabulate-0.10.0-py3-none-any.whl",
+      "distribution": "tabulate",
+      "version": "0.10.0",
+      "sourceUrl": "https://files.pythonhosted.org/packages/99/55/db07de81b5c630da5cbf5c7df646580ca26dfaefa593667fc6f2fe016d2e/tabulate-0.10.0-py3-none-any.whl",
+      "projectUrl": "https://github.com/astanin/python-tabulate",
+      "licenseDeclared": "MIT",
+      "sizeBytes": 39814,
+      "sha256": "f0b0622e567335c8fabaaa659f1b33bcb6ddfe2e496071b743aa113f8774f2d3",
+      "licenseFiles": [
+        {
+          "relativePath": "licenses/LICENSE",
+          "sizeBytes": 1080,
+          "sha256": "cdfab50d37d8ead06468fb76a3abafcd05c16749ec8a18eebfa50fd48c7cb2d2"
+        }
+      ]
+    },
+    {
+      "relativePath": "typing_extensions-4.16.0-py3-none-any.whl",
+      "distribution": "typing_extensions",
+      "version": "4.16.0",
+      "sourceUrl": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl",
+      "projectUrl": "https://github.com/python/typing_extensions/issues",
+      "licenseDeclared": "PSF-2.0",
+      "sizeBytes": 45571,
+      "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+      "licenseFiles": [
+        {
+          "relativePath": "licenses/LICENSE",
+          "sizeBytes": 13936,
+          "sha256": "3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf"
+        }
+      ]
+    },
+    {
+      "relativePath": "yarl-1.24.2-cp314-cp314-win_amd64.whl",
+      "distribution": "yarl",
+      "version": "1.24.2",
+      "sourceUrl": "https://files.pythonhosted.org/packages/fa/d9/5582d57e2b2db9b85eb6663a22efdd78e08805f3f5389566e9fcad254d1b/yarl-1.24.2-cp314-cp314-win_amd64.whl",
+      "projectUrl": "https://github.com/aio-libs/yarl/actions?query=branch:master",
+      "licenseDeclared": "Apache-2.0",
+      "sizeBytes": 94424,
+      "sha256": "afb00d7fd8e0f285ca29a44cc50df2d622ff2f7a6d933fa641577b5f9d5f3db0",
+      "licenseFiles": [
+        {
+          "relativePath": "licenses/LICENSE",
+          "sizeBytes": 11358,
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "relativePath": "licenses/NOTICE",
+          "sizeBytes": 609,
+          "sha256": "56d6ac6c8105c0a51304c21db060e361af9a8ea0af9a75c239c28b5d13693838"
+        }
+      ]
+    }
+  ]
+}

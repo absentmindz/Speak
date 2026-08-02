@@ -1,0 +1,19 @@
+# Portable Microsoft Edge TTS command runtime for Speak packages.
+#
+# Exact pins only. Packaging accepts only a pre-audited Python 3.14.6 wheel
+# cache whose manifest binds every wheel to this file by size and SHA-256.
+# Edge speech remains Microsoft-cloud-backed and requires internet access.
+
+aiohappyeyeballs==2.7.1
+aiohttp==3.14.1
+aiosignal==1.4.0
+attrs==26.1.0
+certifi==2026.6.17
+edge-tts==7.2.8
+frozenlist==1.8.0
+idna==3.18
+multidict==6.7.1
+propcache==0.5.2
+tabulate==0.10.0
+typing_extensions==4.16.0
+yarl==1.24.2

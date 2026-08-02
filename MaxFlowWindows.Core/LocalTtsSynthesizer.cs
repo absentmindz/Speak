@@ -36,6 +36,8 @@ public sealed class LocalTtsSynthesizer
 			"SPEAK_QWEN_CUSTOMVOICE_WORKER_PORT", 8766),
 		["qwen3-base-1.7b"] = EndpointSecurity.ResolveLoopbackPort(
 			"SPEAK_QWEN_BASE_WORKER_PORT", 8767),
+		["higgs-tts-3-4b"] = EndpointSecurity.ResolveLoopbackPort(
+			"SPEAK_HIGGS_WORKER_PORT", 8769),
 	};
 
 	private const string UnifiedWorkerScript = "tools\\speak_worker.py";
@@ -44,6 +46,7 @@ public sealed class LocalTtsSynthesizer
 	{
 		["qwen3-customvoice-1.7b"] = "tools\\qwen3-tts\\qwen3_tts_worker.py",
 		["qwen3-base-1.7b"] = "tools\\qwen3-tts\\qwen3_tts_worker.py",
+		["higgs-tts-3-4b"] = "tools\\higgs-tts\\higgs_tts_worker.py",
 	};
 
 	private static readonly Dictionary<string, string> ChatterboxModelNames = new(StringComparer.OrdinalIgnoreCase)
@@ -84,11 +87,23 @@ public sealed class LocalTtsSynthesizer
 			throw new InvalidOperationException("There is no text to speak.");
 		}
 
+		bool isCloneVoice = !string.IsNullOrWhiteSpace(request.VoicePromptPath)
+			&& File.Exists(request.VoicePromptPath)
+			&& request.VoiceId.StartsWith("clone:", StringComparison.OrdinalIgnoreCase);
+
 		TtsEngineOption engine = TtsEngineOption.Find(request.EngineId);
 		request.EngineId = engine.Id;
-		if (!engine.SupportsDirectSpeech)
+		if (!engine.SupportsDirectSpeech && !(isCloneVoice && request.EngineId.StartsWith("qwen3-", StringComparison.OrdinalIgnoreCase)))
 		{
-			throw new InvalidOperationException(engine.Name + " is installed but reserved for cloning/design. Use Qwen3 CustomVoice, Qwen3 Base, or Tortoise to speak text.");
+			throw new InvalidOperationException(engine.Name + " is installed but reserved for cloning/design. Choose an engine that supports direct speech.");
+		}
+
+		bool routeCloneVoice = isCloneVoice && (request.EngineId.StartsWith("qwen3-", StringComparison.OrdinalIgnoreCase)
+			|| request.EngineId.StartsWith("higgs-", StringComparison.OrdinalIgnoreCase));
+		if (routeCloneVoice && request.EngineId.StartsWith("qwen3-", StringComparison.OrdinalIgnoreCase))
+		{
+			request.EngineId = "qwen3-base-1.7b";
+			engine = TtsEngineOption.Find(request.EngineId);
 		}
 		if (!engine.IsRuntimeReady())
 		{
@@ -112,7 +127,11 @@ public sealed class LocalTtsSynthesizer
 		bool useWorker = CanWarmUp(request.EngineId)
 			&& await WarmUpAsync(request.EngineId, request.ModelKeepAliveMinutes, cancellationToken);
 		string output;
-		if (useWorker)
+		if (routeCloneVoice)
+		{
+			output = await SynthesizeVoiceCloneAsync(request.Text, request.VoicePromptPath, request.EngineId, request.Language, request.ModelKeepAliveMinutes, cancellationToken, outputRoot);
+		}
+		else if (useWorker)
 		{
 			output = await SynthesizeViaWorkerAsync(request, outputRoot, cancellationToken);
 		}
@@ -120,8 +139,10 @@ public sealed class LocalTtsSynthesizer
 		{
 			output = engine.Id switch
 			{
+				"edge-tts" => await SynthesizeEdgeTtsAsync(request, outputRoot, cancellationToken),
 				"qwen3-customvoice-1.7b" => await SynthesizeQwenAsync(request, outputRoot, engine.ModelPath, cancellationToken),
 				"qwen3-base-1.7b" => await SynthesizeQwenAsync(request, outputRoot, engine.ModelPath, cancellationToken),
+				"higgs-tts-3-4b" => await SynthesizeHiggsOneShotAsync(request, outputRoot, engine.ModelPath, cancellationToken),
 				"tortoise-ultra-fast" => await SynthesizeTortoiseAsync(request, outputRoot, cancellationToken),
 				_ => await SynthesizeChatterboxAsync(request, outputRoot, cancellationToken)
 			};
@@ -168,7 +189,7 @@ public sealed class LocalTtsSynthesizer
 	{
 		return WorkerPorts.ContainsKey(engineId)
 			&& LegacyWorkerScripts.TryGetValue(engineId, out string? script)
-			&& File.Exists(ResolvePreferredQwenScript(script, out _));
+			&& File.Exists(ResolveWorkerScriptForEngine(engineId, script, out _));
 	}
 
 	[System.Diagnostics.CodeAnalysis.SuppressMessage(
@@ -221,7 +242,7 @@ public sealed class LocalTtsSynthesizer
 				return true;
 			}
 			await StopWorkerAsync();
-			string scriptPath = ResolvePreferredQwenScript(scriptRelPath, out bool useUnifiedWorker);
+			string scriptPath = ResolveWorkerScriptForEngine(engineId, scriptRelPath, out bool useUnifiedWorker);
 			if (!File.Exists(scriptPath))
 			{
 				return false;
@@ -267,9 +288,16 @@ public sealed class LocalTtsSynthesizer
 					: engine.ModelPath);
 				SetQwenEnvironment(psi);
 			}
+			else if (engineId.StartsWith("higgs-", StringComparison.OrdinalIgnoreCase))
+			{
+				psi.ArgumentList.Add("--model");
+				psi.ArgumentList.Add(engine.ModelPath);
+				SetHiggsEnvironment(psi);
+			}
 			psi.ArgumentList.Add("--device");
 			psi.ArgumentList.Add("auto");
 			psi.Environment["PYTHONUTF8"] = "1";
+			psi.Environment["PYTHONDONTWRITEBYTECODE"] = "1";
 			psi.Environment["PYTHONIOENCODING"] = "utf-8";
 			psi.Environment["SPEAK_WORKER_TOKEN"] = authToken;
 			Process process = new Process
@@ -436,12 +464,12 @@ public sealed class LocalTtsSynthesizer
 		return outputPath;
 	}
 
-	private async Task<string> SynthesizeCloneViaWorkerAsync(string text, string refAudio, string language, string output, CancellationToken cancellationToken)
+	private async Task<string> SynthesizeCloneViaWorkerAsync(string text, string refAudio, string language, string engineId, string output, CancellationToken cancellationToken)
 	{
 		TtsWorkerContext? worker = _activeWorker;
-		if (worker == null || !worker.EngineId.Equals("qwen3-base-1.7b", StringComparison.OrdinalIgnoreCase))
+		if (worker == null || !worker.EngineId.Equals(engineId, StringComparison.OrdinalIgnoreCase))
 		{
-			throw new InvalidOperationException("Warm Qwen3 Base worker is not available.");
+			throw new InvalidOperationException("Warm worker is not available for the selected clone engine.");
 		}
 		Dictionary<string, object> payload = new Dictionary<string, object>
 		{
@@ -498,6 +526,120 @@ public sealed class LocalTtsSynthesizer
 		return output;
 	}
 
+	internal static bool UsesBundledEdgeTtsPythonModule(string runtimePath)
+	{
+		return TtsEngineOption.IsEdgeTtsPythonRuntime(runtimePath);
+	}
+
+	internal static ProcessStartInfo CreateEdgeTtsStartInfo(
+		string runtimePath,
+		string workingDirectory,
+		string inputPath,
+		string voice,
+		string outputPath)
+	{
+		ProcessStartInfo startInfo = new ProcessStartInfo
+		{
+			FileName = runtimePath,
+			WorkingDirectory = workingDirectory,
+			UseShellExecute = false,
+			RedirectStandardOutput = true,
+			RedirectStandardError = true,
+			CreateNoWindow = true
+		};
+		SanitizeChildProcessEnvironment(startInfo);
+		if (UsesBundledEdgeTtsPythonModule(runtimePath))
+		{
+			startInfo.ArgumentList.Add("-B");
+			startInfo.ArgumentList.Add("-I");
+			startInfo.ArgumentList.Add("-m");
+			startInfo.ArgumentList.Add("edge_tts");
+			startInfo.Environment["PYTHONUTF8"] = "1";
+			startInfo.Environment["PYTHONDONTWRITEBYTECODE"] = "1";
+			startInfo.Environment["PYTHONIOENCODING"] = "utf-8";
+		}
+		startInfo.ArgumentList.Add("--file");
+		startInfo.ArgumentList.Add(inputPath);
+		startInfo.ArgumentList.Add("--voice");
+		startInfo.ArgumentList.Add(voice);
+		startInfo.ArgumentList.Add("--rate");
+		startInfo.ArgumentList.Add("+0%");
+		startInfo.ArgumentList.Add("--pitch");
+		startInfo.ArgumentList.Add("+0Hz");
+		startInfo.ArgumentList.Add("--volume");
+		startInfo.ArgumentList.Add("+0%");
+		startInfo.ArgumentList.Add("--write-media");
+		startInfo.ArgumentList.Add(outputPath);
+		return startInfo;
+	}
+
+	private static async Task<string> SynthesizeEdgeTtsAsync(TtsSynthesisRequest request, string outputRoot, CancellationToken cancellationToken)
+	{
+		string voice = string.IsNullOrWhiteSpace(request.VoiceId)
+			|| request.VoiceId.Equals("default", StringComparison.OrdinalIgnoreCase)
+			? "en-US-BrianNeural"
+			: request.VoiceId;
+		string stamp = Stamp();
+		string output = Path.Combine(outputRoot, "edge-" + StableFilePart(voice) + "-" + stamp + ".mp3");
+		string input = Path.Combine(outputRoot, ".edge-input-" + stamp + ".txt");
+		TtsEngineOption engine = TtsEngineOption.Find("edge-tts");
+		await File.WriteAllTextAsync(input, request.Text, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), cancellationToken);
+		try
+		{
+			ProcessStartInfo startInfo = CreateEdgeTtsStartInfo(
+				engine.RuntimePath,
+				WorkspaceRoot,
+				input,
+				voice,
+				output);
+			await RunProcessAsync(startInfo, TimeSpan.FromMinutes(5), cancellationToken);
+		}
+		finally
+		{
+			try
+			{
+				File.Delete(input);
+			}
+			catch
+			{
+			}
+		}
+		return output;
+	}
+
+	private static async Task<string> SynthesizeHiggsOneShotAsync(TtsSynthesisRequest request, string outputRoot, string modelPath, CancellationToken cancellationToken)
+	{
+		string output = Path.Combine(outputRoot, "higgs-" + Stamp() + ".wav");
+		TtsEngineOption engine = TtsEngineOption.Find("higgs-tts-3-4b");
+		ProcessStartInfo startInfo = new ProcessStartInfo
+		{
+			FileName = engine.RuntimePath,
+			WorkingDirectory = WorkspaceRoot,
+			UseShellExecute = false,
+			RedirectStandardOutput = true,
+			RedirectStandardError = true,
+			CreateNoWindow = true
+		};
+		string scriptPath = ResolveToolScript("tools\\higgs-tts\\higgs_tts_worker.py");
+		if (!File.Exists(scriptPath))
+		{
+			throw new FileNotFoundException("Higgs TTS helper script is not installed.", scriptPath);
+		}
+		startInfo.ArgumentList.Add(scriptPath);
+		startInfo.ArgumentList.Add("say");
+		startInfo.ArgumentList.Add("--text");
+		startInfo.ArgumentList.Add(request.Text);
+		startInfo.ArgumentList.Add("--out");
+		startInfo.ArgumentList.Add(output);
+		startInfo.ArgumentList.Add("--model");
+		startInfo.ArgumentList.Add(modelPath);
+		startInfo.ArgumentList.Add("--device");
+		startInfo.ArgumentList.Add("auto");
+		SetHiggsEnvironment(startInfo);
+		await RunProcessAsync(startInfo, TimeSpan.FromMinutes(60), cancellationToken);
+		return output;
+	}
+
 	private static async Task<string> SynthesizeQwenAsync(TtsSynthesisRequest request, string outputRoot, string modelPath, CancellationToken cancellationToken)
 	{
 		string output = Path.Combine(outputRoot, "qwen3-" + StableFilePart(request.VoiceId) + "-" + Stamp() + ".wav");
@@ -538,7 +680,7 @@ public sealed class LocalTtsSynthesizer
 		return output;
 	}
 
-	public async Task<string> SynthesizeVoiceCloneAsync(string text, string refAudio, string cloneEngineId, string language, int keepAliveMinutes, CancellationToken cancellationToken)
+	public async Task<string> SynthesizeVoiceCloneAsync(string text, string refAudio, string cloneEngineId, string language, int keepAliveMinutes, CancellationToken cancellationToken, string? outputRootOverride = null)
 	{
 		if (string.IsNullOrWhiteSpace(text))
 		{
@@ -549,7 +691,7 @@ public sealed class LocalTtsSynthesizer
 			throw new FileNotFoundException("Reference audio not found.", refAudio);
 		}
 
-		string outputRoot = Path.Combine(SpeakDataPaths.ResolveDataRoot(), "tts", "clone-outputs");
+		string outputRoot = outputRootOverride ?? Path.Combine(SpeakDataPaths.ResolveDataRoot(), "tts", "clone-outputs");
 		Directory.CreateDirectory(outputRoot);
 		string output = Path.Combine(outputRoot, "clone-" + Stamp() + ".wav");
 
@@ -563,7 +705,7 @@ public sealed class LocalTtsSynthesizer
 			bool useWorker = await WarmUpAsync(engine.Id, keepAliveMinutes, cancellationToken);
 			if (useWorker)
 			{
-				return await SynthesizeCloneViaWorkerAsync(text, refAudio, language, output, cancellationToken);
+				return await SynthesizeCloneViaWorkerAsync(text, refAudio, language, engine.Id, output, cancellationToken);
 			}
 			ProcessStartInfo startInfo = new ProcessStartInfo
 			{
@@ -599,6 +741,47 @@ public sealed class LocalTtsSynthesizer
 			startInfo.ArgumentList.Add("auto");
 			SetQwenEnvironment(startInfo);
 			await RunProcessAsync(startInfo, TimeSpan.FromMinutes(45), cancellationToken);
+		}
+		else if (cloneEngineId.Equals("higgs-tts-3-4b", StringComparison.OrdinalIgnoreCase))
+		{
+			TtsEngineOption engine = TtsEngineOption.Find("higgs-tts-3-4b");
+			if (!engine.IsModelReady())
+			{
+				throw new DirectoryNotFoundException("Higgs model not found: " + engine.ModelPath);
+			}
+			bool useWorker = await WarmUpAsync(engine.Id, keepAliveMinutes, cancellationToken);
+			if (useWorker)
+			{
+				return await SynthesizeCloneViaWorkerAsync(text, refAudio, language, engine.Id, output, cancellationToken);
+			}
+			ProcessStartInfo startInfo = new ProcessStartInfo
+			{
+				FileName = engine.RuntimePath,
+				WorkingDirectory = WorkspaceRoot,
+				UseShellExecute = false,
+				RedirectStandardOutput = true,
+				RedirectStandardError = true,
+				CreateNoWindow = true
+			};
+			string scriptPath = ResolveToolScript("tools\\higgs-tts\\higgs_tts_worker.py");
+			if (!File.Exists(scriptPath))
+			{
+				throw new FileNotFoundException("Higgs TTS helper script is not installed.", scriptPath);
+			}
+			startInfo.ArgumentList.Add(scriptPath);
+			startInfo.ArgumentList.Add("clone");
+			startInfo.ArgumentList.Add("--text");
+			startInfo.ArgumentList.Add(text);
+			startInfo.ArgumentList.Add("--ref-audio");
+			startInfo.ArgumentList.Add(refAudio);
+			startInfo.ArgumentList.Add("--out");
+			startInfo.ArgumentList.Add(output);
+			startInfo.ArgumentList.Add("--model");
+			startInfo.ArgumentList.Add(engine.ModelPath);
+			startInfo.ArgumentList.Add("--device");
+			startInfo.ArgumentList.Add("auto");
+			SetHiggsEnvironment(startInfo);
+			await RunProcessAsync(startInfo, TimeSpan.FromMinutes(60), cancellationToken);
 		}
 		else if (cloneEngineId.Equals("tortoise-ultra-fast", StringComparison.OrdinalIgnoreCase))
 		{
@@ -794,6 +977,16 @@ public sealed class LocalTtsSynthesizer
 		PrependFfmpegPath(startInfo);
 	}
 
+	private static void SetHiggsEnvironment(ProcessStartInfo startInfo)
+	{
+		var cacheRoot = _config.Paths.CacheRoot;
+		startInfo.Environment["HF_HOME"] = Path.Combine(cacheRoot, "huggingface");
+		startInfo.Environment["HUGGINGFACE_HUB_CACHE"] = Path.Combine(cacheRoot, "huggingface", "hub");
+		startInfo.Environment["TRANSFORMERS_CACHE"] = Path.Combine(cacheRoot, "huggingface", "transformers");
+		startInfo.Environment["TORCH_HOME"] = Path.Combine(cacheRoot, "torch");
+		PrependFfmpegPath(startInfo);
+	}
+
 	private static void SetTortoiseEnvironment(ProcessStartInfo startInfo)
 	{
 		var modelsRoot = _config.Paths.ModelsRoot;
@@ -803,6 +996,7 @@ public sealed class LocalTtsSynthesizer
 		startInfo.Environment["TORTOISE_MODELS_DIR"] = Path.Combine(modelsRoot, "tortoise-tts", "models");
 		startInfo.Environment["XDG_CACHE_HOME"] = Path.Combine(cacheRoot, "tortoise-tts");
 		startInfo.Environment["PYTHONUTF8"] = "1";
+		startInfo.Environment["PYTHONDONTWRITEBYTECODE"] = "1";
 		startInfo.Environment["PYTHONIOENCODING"] = "utf-8";
 		PrependFfmpegPath(startInfo);
 	}
@@ -863,14 +1057,18 @@ public sealed class LocalTtsSynthesizer
 	private static bool HasSynthesisScript(string engineId)
 	{
 		string expected = ExpectedSynthesisScript(engineId);
-		return !string.IsNullOrWhiteSpace(expected) && File.Exists(expected);
+		return engineId.Equals("edge-tts", StringComparison.OrdinalIgnoreCase)
+			? TtsEngineOption.IsUsableEdgeTtsRuntime(expected)
+			: !string.IsNullOrWhiteSpace(expected) && File.Exists(expected);
 	}
 
 	private static string ExpectedSynthesisScript(string engineId)
 	{
 		return engineId switch
 		{
+			"edge-tts" => TtsEngineOption.Find("edge-tts").RuntimePath,
 			"qwen3-customvoice-1.7b" or "qwen3-base-1.7b" => ResolvePreferredQwenScript("tools\\qwen3_tts_local.py", out _),
+			"higgs-tts-3-4b" => ResolveToolScript("tools\\higgs-tts\\higgs_tts_worker.py"),
 			"tortoise-ultra-fast" => Path.Combine(_config.Paths.ToolsRoot, "tortoise-tts", "tortoise", "do_tts.py"),
 			"chatterbox-turbo" or "chatterbox-multilingual-v3" => ResolveToolScript("tools\\chatter-tts\\chatter_tts_generate.py"),
 			_ => ""
@@ -916,6 +1114,16 @@ public sealed class LocalTtsSynthesizer
 
 		useUnifiedWorker = false;
 		return ResolveToolScript(legacyRelativePath);
+	}
+
+	private static string ResolveWorkerScriptForEngine(string engineId, string legacyRelativePath, out bool useUnifiedWorker)
+	{
+		if (engineId.StartsWith("higgs-", StringComparison.OrdinalIgnoreCase))
+		{
+			useUnifiedWorker = false;
+			return ResolveToolScript(legacyRelativePath);
+		}
+		return ResolvePreferredQwenScript(legacyRelativePath, out useUnifiedWorker);
 	}
 
 	private static IEnumerable<string> ToolRoots()

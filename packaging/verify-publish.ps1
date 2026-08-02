@@ -2,11 +2,16 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$PublishRoot,
     [switch]$AllowPortableAppSettings,
+    [switch]$RequireBundledEdgeTts,
     [switch]$SkipLaunch
 )
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+. (Join-Path $PSScriptRoot "complete\CompleteInstaller.Common.ps1")
+. (Join-Path $PSScriptRoot "EdgeTtsRuntime.Common.ps1")
+$repoRoot = [System.IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
 
 function Get-SpeakRelativePath {
     param(
@@ -38,6 +43,7 @@ $requiredFiles = @(
     "Speak.runtimeconfig.json",
     "LICENSE",
     "NOTICE",
+    "THIRD-PARTY-NOTICES.txt",
     "appsettings.template.json",
     "tools\speak_worker.py",
     "tools\whisper_resident_server.py",
@@ -51,9 +57,25 @@ foreach ($relative in $requiredFiles) {
     }
 }
 
+foreach ($notice in @(
+    @{ Published = 'LICENSE'; Source = 'LICENSE' },
+    @{ Published = 'NOTICE'; Source = 'NOTICE' },
+    @{ Published = 'THIRD-PARTY-NOTICES.txt'; Source = 'THIRD-PARTY-NOTICES.txt' }
+)) {
+    $publishedPath = Join-Path $root $notice.Published
+    $sourcePath = Join-Path $repoRoot $notice.Source
+    if ((Get-CompleteSha256 -Path $publishedPath) -cne (Get-CompleteSha256 -Path $sourcePath)) {
+        throw "Published compliance file differs from the tracked source: $($notice.Published)"
+    }
+}
+
 $forbiddenFiles = Get-ChildItem -LiteralPath $root -Recurse -File |
     Where-Object {
-        $_.Name -match '(^\.env($|\.)|\.py[co]$|\.pyd$|\.pdb$|\.user$|\.bak($|-))' -or
+        $relative = Get-SpeakRelativePath -BasePath $root -TargetPath $_.FullName
+        $isAuditedEdgeRuntime = $RequireBundledEdgeTts -and
+            $relative.StartsWith("Runtime\EdgeTts\7.2.8\", [System.StringComparison]::OrdinalIgnoreCase)
+        $_.Name -match '(^\.env($|\.)|\.py[co]$|\.pdb$|\.user$|\.bak($|-))' -or
+        ($_.Extension -ceq '.pyd' -and -not $isAuditedEdgeRuntime) -or
         ($_.DirectoryName -like (Join-Path $root "tools*") -and
             $_.Extension -in @(".exe", ".dll"))
     }
@@ -71,6 +93,84 @@ if ($AllowPortableAppSettings) {
 }
 elseif (Test-Path -LiteralPath $settingsPath) {
     throw "A developer appsettings.json was copied into the clean publish."
+}
+
+if ($RequireBundledEdgeTts) {
+    if (-not $AllowPortableAppSettings) {
+        throw "Bundled Edge TTS verification requires the audited portable appsettings.json."
+    }
+    $settings = Get-Content -LiteralPath $settingsPath -Raw | ConvertFrom-Json
+    if ([string]$settings.TTS.EdgeTtsExecutablePath -cne '') {
+        throw "Packaged EdgeTtsExecutablePath must remain empty so runtime auto-discovery stays relocation-safe."
+    }
+
+    $edgeRuntimeRoot = Join-Path $root "Runtime\EdgeTts\7.2.8"
+    $edgePython = Join-Path $edgeRuntimeRoot "python.exe"
+    $edgeModule = Join-Path $edgeRuntimeRoot "Lib\site-packages\edge_tts\__main__.py"
+    foreach ($required in @($edgePython, $edgeModule)) {
+        if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+            throw "Published artifact is missing the bundled Edge TTS runtime file: $required"
+        }
+    }
+    $edgeRequirementsPath = Join-Path $repoRoot "tools\requirements-edge-tts.lock.txt"
+    $edgeManifestPath = Join-Path $PSScriptRoot "edge-tts-wheelhouse.manifest.json"
+    $sourceLock = Read-CompleteJson -Path (Join-Path $PSScriptRoot 'complete\sources.lock.json') `
+        -Description "Complete-installer source lock"
+    $edgeSupportRoot = Join-Path $edgeRuntimeRoot 'Support'
+    $stagedRequirementsPath = Join-Path $edgeSupportRoot 'requirements-edge-tts.lock.txt'
+    $stagedManifestPath = Join-Path $edgeSupportRoot 'edge-tts-wheelhouse.manifest.json'
+    $stagedInventoryPath = Join-Path $edgeSupportRoot 'edge-tts-runtime.inventory.json'
+    foreach ($supportFile in @($stagedRequirementsPath, $stagedManifestPath, $stagedInventoryPath)) {
+        Assert-CompleteFile -Path $supportFile -Description "Bundled Edge TTS support evidence" | Out-Null
+    }
+    if ((Get-CompleteSha256 -Path $stagedRequirementsPath) -cne (Get-CompleteSha256 -Path $edgeRequirementsPath) -or
+        (Get-CompleteSha256 -Path $stagedManifestPath) -cne (Get-CompleteSha256 -Path $edgeManifestPath)) {
+        throw "Bundled Edge TTS lock or wheel manifest differs from the tracked audited evidence."
+    }
+    $edgePinnedRequirements = Get-EdgeTtsPinnedRequirements -Path $edgeRequirementsPath
+    $edgeWheelManifest = Read-CompleteJson -Path $stagedManifestPath -Description "Bundled Edge TTS wheel manifest"
+    if ([string]$edgeWheelManifest.requirementsSha256 -cne (Get-CompleteSha256 -Path $edgeRequirementsPath)) {
+        throw "The tracked Edge TTS wheel manifest does not bind to the current requirement lock."
+    }
+    Assert-EdgeTtsRuntimeLicenseInventory -RuntimeRoot $edgeRuntimeRoot `
+        -PinnedRequirements $edgePinnedRequirements -WheelManifest $edgeWheelManifest `
+        -PythonSourceLock $sourceLock.python
+    Assert-EdgeTtsRuntimeInventory -RuntimeRoot $edgeRuntimeRoot -RequirementsPath $stagedRequirementsPath `
+        -WheelManifestPath $stagedManifestPath -PinnedRequirements $edgePinnedRequirements `
+        -WheelManifest $edgeWheelManifest -PythonSourceLock $sourceLock.python -InventoryPath $stagedInventoryPath
+    foreach ($forbiddenDirectory in @(
+        (Join-Path $edgeRuntimeRoot 'Scripts'),
+        (Join-Path $edgeRuntimeRoot 'Lib\site-packages\bin'),
+        (Join-Path $edgeRuntimeRoot 'Lib\site-packages\pip')
+    )) {
+        if (Test-Path -LiteralPath $forbiddenDirectory) {
+            throw "The bundled Edge TTS runtime contains pip or path-bound launchers: $forbiddenDirectory"
+        }
+    }
+    $pipMetadata = @(Get-ChildItem -LiteralPath (Join-Path $edgeRuntimeRoot 'Lib\site-packages') -Directory -Filter 'pip-*.dist-info' -Force)
+    if ($pipMetadata.Count -gt 0) {
+        throw "The bundled Edge TTS runtime must not contain pip metadata."
+    }
+    $generatedRuntimeItems = @(Get-ChildItem -LiteralPath $edgeRuntimeRoot -Recurse -Force | Where-Object {
+        ($_.PSIsContainer -and $_.Name -ceq '__pycache__') -or
+        (-not $_.PSIsContainer -and $_.Extension -in @('.pyc', '.pyo'))
+    })
+    if ($generatedRuntimeItems.Count -gt 0) {
+        throw "The bundled Edge TTS runtime contains generated bytecode: $($generatedRuntimeItems.FullName -join ', ')"
+    }
+
+    $previousNoByteCode = $env:PYTHONDONTWRITEBYTECODE
+    $env:PYTHONDONTWRITEBYTECODE = '1'
+    try {
+        $edgeVersionOutput = @(& $edgePython -B -I -m edge_tts --version 2>&1)
+        $edgeVersionExitCode = $LASTEXITCODE
+    }
+    finally {
+        $env:PYTHONDONTWRITEBYTECODE = $previousNoByteCode
+    }
+    if ($edgeVersionExitCode -ne 0 -or (($edgeVersionOutput -join "`n").Trim() -cne 'edge-tts 7.2.8')) {
+        throw "The bundled Edge TTS runtime failed its relocation-safe module launch check: $($edgeVersionOutput -join ' ')"
+    }
 }
 
 $textExtensions = @(
@@ -101,6 +201,12 @@ foreach ($file in Get-ChildItem -LiteralPath $root -Recurse -File |
     for ($index = 0; $index -lt $lines.Count; $index++) {
         foreach ($rule in $privacyPatterns.GetEnumerator()) {
             if ($lines[$index] -match $rule.Value) {
+                $isAuditedEdgeThirdPartyText =
+                    $relative.StartsWith("Runtime\EdgeTts\7.2.8\Lib\site-packages\", [System.StringComparison]::OrdinalIgnoreCase) -and
+                    $rule.Key -in @("Windows user profile path", "Unix user profile path", "consumer email address")
+                if ($isAuditedEdgeThirdPartyText) {
+                    continue
+                }
                 $lineWithoutApprovedAttribution = $lines[$index] -replace '(?i)\bjbevain@gmail\.com\b', ''
                 $isApprovedAttribution =
                     $rule.Key -eq "consumer email address" -and

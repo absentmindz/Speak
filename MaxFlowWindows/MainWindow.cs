@@ -771,13 +771,19 @@ public partial class MainWindow : Window, IComponentConnector
 	{
 		try
 		{
-			string flagPath = System.IO.Path.Combine(SpeakDataPaths.ResolveDataRoot(), ".onboarded");
+			string flagPath = System.IO.Path.Combine(
+				SpeakDataPaths.ResolveDataRoot(),
+				".onboarded-local-whisper-v1");
 			if (!System.IO.File.Exists(flagPath))
 			{
 				base.Dispatcher.BeginInvoke((Action)(() =>
 				{
-					var onboarding = new FirstRunWindow();
+					using var onboarding = new FirstRunWindow();
 					onboarding.ShowDialog();
+					if (!onboarding.LocalRuntimeReady)
+					{
+						return;
+					}
 					try
 					{
 						System.IO.File.WriteAllText(flagPath, DateTimeOffset.Now.ToString("O"));
@@ -2103,7 +2109,7 @@ public partial class MainWindow : Window, IComponentConnector
 		body.Children.Add(voiceOptions);
 		_ttsSampleTextBox = new System.Windows.Controls.TextBox
 		{
-			Text = "Speak local TTS is ready.",
+			Text = "Speak TTS is ready.",
 			MinHeight = 88.0,
 			TextWrapping = TextWrapping.Wrap,
 			AcceptsReturn = true,
@@ -2136,7 +2142,7 @@ public partial class MainWindow : Window, IComponentConnector
 		body.Children.Add(warmActions);
 		_ttsWarmStatusTextBlock = CreateAudioStatusText();
 		body.Children.Add(_ttsWarmStatusTextBlock);
-		return CreateAudioStudioPanel("02", "Speak", "Generate local voice audio and preview it in-app.", body);
+		return CreateAudioStudioPanel("02", "Speak", "Generate local or Microsoft Edge neural voice audio and preview it in-app.", body);
 	}
 
 	private Border CreateAudioVoiceLabPanel()
@@ -2171,6 +2177,7 @@ public partial class MainWindow : Window, IComponentConnector
 			SelectedValuePath = "Id"
 		};
 		_audioCloneEngineComboBox.Items.Add(new { Name = "Qwen3 1.7B Base", Id = "qwen3-base-1.7b" });
+		_audioCloneEngineComboBox.Items.Add(new { Name = "Higgs Audio v3 TTS", Id = "higgs-tts-3-4b" });
 		_audioCloneEngineComboBox.Items.Add(new { Name = "Tortoise TTS", Id = "tortoise-ultra-fast" });
 		_audioCloneEngineComboBox.SelectedValue = _settings.VoiceCloneEngineId;
 		body.Children.Add(CreateAudioField("Clone engine", _audioCloneEngineComboBox));
@@ -2711,7 +2718,7 @@ public partial class MainWindow : Window, IComponentConnector
 
 		TextBlock heading = new TextBlock
 		{
-			Text = "Local TTS",
+			Text = "Text to Speech",
 			FontSize = 17.0,
 			FontWeight = FontWeights.SemiBold,
 			Foreground = ResourceBrush("InkBrush")
@@ -2719,7 +2726,7 @@ public partial class MainWindow : Window, IComponentConnector
 		stackPanel.Children.Add(heading);
 		stackPanel.Children.Add(new TextBlock
 		{
-			Text = "Generate audio from the current Speak output using the configured Qwen3 and Tortoise models.",
+			Text = "Generate audio from the current Speak output using configured local models or Microsoft Edge neural voices.",
 			TextWrapping = TextWrapping.Wrap,
 			Margin = new Thickness(0.0, 5.0, 0.0, 14.0),
 			Foreground = ResourceBrush("MutedBrush")
@@ -2748,7 +2755,7 @@ public partial class MainWindow : Window, IComponentConnector
 
 		_ttsSampleTextBox = new System.Windows.Controls.TextBox
 		{
-			Text = "Speak local TTS is ready.",
+			Text = "Speak TTS is ready.",
 			MinHeight = 64.0,
 			TextWrapping = TextWrapping.Wrap,
 			AcceptsReturn = true,
@@ -2922,6 +2929,16 @@ public partial class MainWindow : Window, IComponentConnector
 			? "Output folder: " + _settings.TtsOutputRoot
 			: "Last output: " + _settings.TtsLastOutputPath;
 		bool canSpeak = _ttsSynthesizer.CanSynthesize(engine.Id);
+		if (!canSpeak
+			&& engine.Id.Equals("qwen3-base-1.7b", StringComparison.OrdinalIgnoreCase)
+			&& _ttsVoiceComboBox?.SelectedValue is string selectedVoice
+			&& selectedVoice.StartsWith("clone:", StringComparison.OrdinalIgnoreCase)
+			&& _cloneVoiceRefs.TryGetValue(selectedVoice, out string? refAudio)
+			&& !string.IsNullOrWhiteSpace(refAudio)
+			&& File.Exists(refAudio))
+		{
+			canSpeak = true;
+		}
 		if (_ttsSpeakCurrentButton != null)
 		{
 			_ttsSpeakCurrentButton.IsEnabled = canSpeak;
@@ -3055,7 +3072,7 @@ public partial class MainWindow : Window, IComponentConnector
 			profileName,
 			createdAt = DateTimeOffset.Now,
 			engineId,
-			model = TtsEngineOption.Find("qwen3-base-1.7b").ModelPath,
+			model = TtsEngineOption.Find(engineId).ModelPath,
 			referenceAudio = copiedReference,
 			status = "prepared"
 		}, IndentedJsonOptions));
@@ -3442,7 +3459,10 @@ public partial class MainWindow : Window, IComponentConnector
 		try
 		{
 			SaveSettingsFromUi();
-			await ReleaseWhisperForAudioStudioAsync();
+			if (TtsEngineOption.Find(_settings.TtsEngineId).UsesLocalResources)
+			{
+				await ReleaseWhisperForAudioStudioAsync();
+			}
 			string voiceId = _settings.TtsVoiceId;
 			string voicePromptPath = "";
 			if (!string.IsNullOrWhiteSpace(voiceId) && voiceId.StartsWith("clone:", StringComparison.OrdinalIgnoreCase) && _cloneVoiceRefs.TryGetValue(voiceId, out string refAudio))
@@ -5778,6 +5798,7 @@ public partial class MainWindow : Window, IComponentConnector
 		processStartInfo.ArgumentList.Add(value);
 		LocalTtsSynthesizer.SanitizeChildProcessEnvironment(processStartInfo);
 		processStartInfo.Environment["PYTHONUTF8"] = "1";
+		processStartInfo.Environment["PYTHONDONTWRITEBYTECODE"] = "1";
 		processStartInfo.Environment["PYTHONIOENCODING"] = "utf-8";
 		processStartInfo.Environment["SPEAK_WORKER_TOKEN"] = _whisperWorkerToken;
 		processStartInfo.Environment["XDG_CACHE_HOME"] = AppConfig.Current.Paths.CacheRoot;
@@ -6088,6 +6109,7 @@ public partial class MainWindow : Window, IComponentConnector
 		};
 		LocalTtsSynthesizer.SanitizeChildProcessEnvironment(processStartInfo);
 		processStartInfo.Environment["PYTHONUTF8"] = "1";
+		processStartInfo.Environment["PYTHONDONTWRITEBYTECODE"] = "1";
 		processStartInfo.Environment["PYTHONIOENCODING"] = "utf-8";
 		processStartInfo.Environment["XDG_CACHE_HOME"] = AppConfig.Current.Paths.CacheRoot;
 		string text3 = ResolveFfmpegDirectory();
@@ -8295,9 +8317,11 @@ public partial class MainWindow : Window, IComponentConnector
 			TranscriptionModelId = transcriptionModelOption.Id,
 			WhisperDeviceId = ((WhisperDeviceComboBox.SelectedValue as string) ?? MaxFlowSettings.Default.WhisperDeviceId),
 			ModelKeepAliveMinutes = ((ModelKeepAliveComboBox.SelectedValue is int num) ? num : MaxFlowSettings.Default.ModelKeepAliveMinutes),
-			WhisperPythonPath = MaxFlowSettings.Default.WhisperPythonPath,
-			WhisperWrapperPath = MaxFlowSettings.Default.WhisperWrapperPath,
-			WhisperModelPath = transcriptionModelOption.ModelPath,
+			WhisperPythonPath = FirstNonEmpty(_settings.WhisperPythonPath, MaxFlowSettings.Default.WhisperPythonPath),
+			WhisperWrapperPath = FirstNonEmpty(_settings.WhisperWrapperPath, MaxFlowSettings.Default.WhisperWrapperPath),
+			WhisperModelPath = transcriptionModelOption.Id.Equals(_settings.TranscriptionModelId, StringComparison.OrdinalIgnoreCase)
+				? FirstNonEmpty(_settings.WhisperModelPath, transcriptionModelOption.ModelPath)
+				: transcriptionModelOption.ModelPath,
 			AudioInputDeviceNumber = ((AudioInputComboBox.SelectedValue is int num2) ? num2 : 0),
 			OutputDestinationId = ((OutputDestinationComboBox.SelectedValue as string) ?? MaxFlowSettings.Default.OutputDestinationId),
 			SttCloudProviderId = ((CloudSttProviderComboBox.SelectedValue as string) ?? MaxFlowSettings.Default.SttCloudProviderId),
@@ -8565,7 +8589,10 @@ public partial class MainWindow : Window, IComponentConnector
 		settings.DictationShortcut = shortcutGesture.ToStorageString();
 		TranscriptionModelOption transcriptionModelOption = transcriptionModels.FirstOrDefault((TranscriptionModelOption option) => option.Id == settings.TranscriptionModelId) ?? transcriptionModels.FirstOrDefault((TranscriptionModelOption option) => option.Id == MaxFlowSettings.Default.TranscriptionModelId) ?? transcriptionModels[0];
 		settings.TranscriptionModelId = transcriptionModelOption.Id;
-		settings.WhisperModelPath = transcriptionModelOption.ModelPath;
+		if (string.IsNullOrWhiteSpace(settings.WhisperModelPath))
+		{
+			settings.WhisperModelPath = transcriptionModelOption.ModelPath;
+		}
 		TtsEngineOption ttsEngineOption = TtsEngineOption.Find(settings.TtsEngineId);
 		settings.TtsEngineId = ttsEngineOption.Id;
 		if (string.IsNullOrWhiteSpace(settings.TtsOutputRoot))
@@ -8582,15 +8609,15 @@ public partial class MainWindow : Window, IComponentConnector
 		{
 			settings.TtsVoiceId = ttsVoiceOptions[0].Id;
 		}
-		if (string.IsNullOrWhiteSpace(settings.QwenTtsCustomVoiceModelPath) || !Directory.Exists(settings.QwenTtsCustomVoiceModelPath))
+		if (string.IsNullOrWhiteSpace(settings.QwenTtsCustomVoiceModelPath))
 		{
 			settings.QwenTtsCustomVoiceModelPath = MaxFlowSettings.Default.QwenTtsCustomVoiceModelPath;
 		}
-		if (string.IsNullOrWhiteSpace(settings.QwenTtsBaseModelPath) || !Directory.Exists(settings.QwenTtsBaseModelPath))
+		if (string.IsNullOrWhiteSpace(settings.QwenTtsBaseModelPath))
 		{
 			settings.QwenTtsBaseModelPath = MaxFlowSettings.Default.QwenTtsBaseModelPath;
 		}
-		if (string.IsNullOrWhiteSpace(settings.QwenTtsVoiceDesignModelPath) || !Directory.Exists(settings.QwenTtsVoiceDesignModelPath))
+		if (string.IsNullOrWhiteSpace(settings.QwenTtsVoiceDesignModelPath))
 		{
 			settings.QwenTtsVoiceDesignModelPath = MaxFlowSettings.Default.QwenTtsVoiceDesignModelPath;
 		}

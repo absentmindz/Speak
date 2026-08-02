@@ -15,6 +15,7 @@ os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
 
 import soundfile as sf
 import torch
+import numpy as np
 from qwen_tts import Qwen3TTSModel
 
 from worker_security import validate_local_model_directory, validate_output_wav
@@ -94,6 +95,19 @@ def canonical_choice(value: Optional[str], supported: Optional[Iterable[str]], f
     return text
 
 
+def _normalize_peak(wav, target: float = 0.95) -> "any":
+    """Boost quiet TTS output up to target peak amplitude. Never reduces or clips."""
+    try:
+        if isinstance(wav, torch.Tensor):
+            wav = wav.detach().cpu().float().numpy()
+        peak = float(np.max(np.abs(wav)))
+        if peak > 1e-8 and peak < target:
+            wav = wav * (target / peak)
+    except Exception:
+        pass
+    return wav
+
+
 def write_wav(path: str, wav, sample_rate: int) -> str:
     output = validate_output_wav(path)
     if not isinstance(sample_rate, int) or not 8_000 <= sample_rate <= 384_000:
@@ -106,6 +120,7 @@ def write_wav(path: str, wav, sample_rate: int) -> str:
     else:
         os.close(reservation)
 
+    wav = _normalize_peak(wav)
     temporary = output.with_name(f".{output.name}.{secrets.token_hex(8)}.tmp.wav")
     try:
         sf.write(str(temporary), wav, sample_rate)

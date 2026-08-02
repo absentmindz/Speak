@@ -2,7 +2,7 @@
 
 #define MyAppName "Speak"
 #ifndef AppVersion
-  #define AppVersion "0.5.2"
+  #define AppVersion "0.5.3"
 #endif
 #define MyAppVersion AppVersion
 #define MyAppPublisher "Speak contributors"
@@ -44,6 +44,12 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"; Flags: unchecked
 Name: "autostart"; Description: "Start Speak when I sign in"; GroupDescription: "Startup:"; Flags: unchecked
+
+[InstallDelete]
+; Replace only Speak's installer-owned Edge TTS runtime so upgrades cannot
+; retain stale Python packages. User settings, recordings, and model folders
+; are outside this directory and remain untouched.
+Type: filesandordirs; Name: "{app}\Runtime\EdgeTts"
 
 [Files]
 ; Preserve an existing machine's runtime/model configuration during upgrades.
@@ -95,7 +101,11 @@ begin
     (NormalizedRoot <> '') and
     DirExists(NormalizedRoot) and
     (FileExists(AddBackslash(NormalizedRoot) +
+       'whisper\base.pt') or
+     FileExists(AddBackslash(NormalizedRoot) +
        'whisper\large-v3.pt') or
+     FileExists(AddBackslash(NormalizedRoot) +
+       'whisper\large-v3-turbo.pt') or
      HasQwenModel(NormalizedRoot,
        'Qwen3-TTS-12Hz-1.7B-CustomVoice') or
      HasQwenModel(NormalizedRoot,
@@ -109,6 +119,49 @@ begin
     creating a duplicate; [UninstallDelete] adopts its cleanup. }
   Result := not FileExists(ExpandConstant(
     '{commonprograms}\{#MyAppName}\{#MyAppName}.lnk'));
+end;
+
+function IsCompletePayloadInstalled(): Boolean;
+begin
+  Result := FileExists(ExpandConstant('{app}\complete-installer.manifest.json'));
+end;
+
+procedure RemoveCompletePayloadBeforeStandardInstall;
+var
+  SupportPath: String;
+  LicensesPath: String;
+begin
+  if not IsCompletePayloadInstalled() then
+    exit;
+
+  { The complete edition owns these app-local runtime trees. Remove them only
+    when its manifest is present so switching back to Standard cannot leave an
+    unmaintained shared Whisper/Edge or FFmpeg runtime. External model roots
+    and any custom configured paths are outside these installer-owned trees. }
+  DelTree(ExpandConstant('{app}\Runtime\Whisper'), True, True, True);
+  DelTree(ExpandConstant('{app}\Tools\ffmpeg'), True, True, True);
+
+  { Remove only the known complete-only evidence and license files. Do not
+    recursively delete these directories: preserving unknown files keeps the
+    edition switch safe for users who placed their own material there. }
+  SupportPath := ExpandConstant('{app}\Support');
+  DeleteFile(AddBackslash(SupportPath) + 'requirements-whisper-cpu.lock.txt');
+  DeleteFile(AddBackslash(SupportPath) + 'sources.lock.json');
+  DeleteFile(AddBackslash(SupportPath) + 'edge-tts-wheelhouse.manifest.json');
+  DeleteFile(AddBackslash(SupportPath) + 'requirements-edge-tts.lock.txt');
+  DeleteFile(AddBackslash(SupportPath) + 'whisper-cpu-wheelhouse.manifest.json');
+  DelTree(AddBackslash(SupportPath) +
+    'Speak-*-Complete-Offline.spdx.json', False, True, False);
+  RemoveDir(SupportPath);
+
+  LicensesPath := ExpandConstant('{app}\Licenses');
+  DeleteFile(AddBackslash(LicensesPath) + 'THIRD-PARTY-NOTICES.txt');
+  DeleteFile(AddBackslash(LicensesPath) + 'FFmpeg-NOTICE.txt');
+  DeleteFile(AddBackslash(LicensesPath) + 'FFmpeg-LGPL-3.0.txt');
+  DeleteFile(AddBackslash(LicensesPath) + 'Whisper-MIT-LICENSE.txt');
+  RemoveDir(LicensesPath);
+
+  DeleteFile(ExpandConstant('{app}\complete-installer.manifest.json'));
 end;
 
 procedure InitializeWizard;
@@ -168,6 +221,9 @@ var
 begin
   if CurStep = ssPostInstall then
   begin
+    { Wait until the Standard application payload has copied successfully,
+      then remove the previous edition's installer-owned extras before launch. }
+    RemoveCompletePayloadBeforeStandardInstall;
     ForceDirectories(ModelsPage.Values[0]);
     RegWriteStringValue(HKLM64, 'SOFTWARE\Speak', 'ModelsRoot', ModelsPage.Values[0]);
     RegWriteStringValue(HKCU, 'SOFTWARE\Speak', 'ModelsRoot', ModelsPage.Values[0]);
