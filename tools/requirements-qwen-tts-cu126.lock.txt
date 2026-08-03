@@ -48,7 +48,7 @@ narwhals==2.24.0
 networkx==3.6.1
 numba==0.66.0
 numpy==2.4.6
-onnxruntime==1.27.0
+onnxruntime==1.28.0
 orjson==3.11.9
 packaging==26.2
 pandas==3.0.3
