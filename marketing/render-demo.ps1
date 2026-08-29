@@ -2,12 +2,19 @@
 param(
     [string]$OutputPath = "docs\demo\speak-demo.mp4",
     [string]$PythonPath = "python",
-    [string]$FfmpegPath
+    [string]$FfmpegPath,
+    [string]$MusicPath = "marketing\audio\speak-demo-original-bed.m4a",
+    [switch]$NoMusic,
+    [switch]$RegenerateMusic
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
+
+if ($NoMusic -and $RegenerateMusic) {
+    throw '-NoMusic and -RegenerateMusic cannot be used together.'
+}
 
 if ([string]::IsNullOrWhiteSpace($FfmpegPath)) {
     $ffmpeg = Get-Command ffmpeg.exe -ErrorAction SilentlyContinue
@@ -26,9 +33,36 @@ if ([string]::IsNullOrWhiteSpace($FfmpegPath)) {
     }
 }
 
+function Resolve-RepositoryPath([string]$Path) {
+    if ([System.IO.Path]::IsPathRooted($Path)) {
+        return [System.IO.Path]::GetFullPath($Path)
+    }
+
+    return [System.IO.Path]::GetFullPath((Join-Path $repositoryRoot $Path))
+}
+
 $scriptPath = Join-Path $PSScriptRoot 'render_demo.py'
-$resolvedOutput = [System.IO.Path]::GetFullPath((Join-Path $repositoryRoot $OutputPath))
-& $PythonPath $scriptPath --ffmpeg $FfmpegPath --output $resolvedOutput
+$resolvedOutput = Resolve-RepositoryPath $OutputPath
+$rendererArguments = @($scriptPath, '--ffmpeg', $FfmpegPath, '--output', $resolvedOutput)
+
+if (-not $NoMusic) {
+    $resolvedMusic = Resolve-RepositoryPath $MusicPath
+    if ($RegenerateMusic) {
+        $musicGenerator = Join-Path $PSScriptRoot 'generate_demo_music.py'
+        & $PythonPath $musicGenerator --ffmpeg $FfmpegPath --output $resolvedMusic
+        if ($LASTEXITCODE -ne 0) {
+            throw "Demo music generator failed with exit code $LASTEXITCODE."
+        }
+    }
+
+    if (-not (Test-Path -LiteralPath $resolvedMusic -PathType Leaf)) {
+        throw "Demo music was not found: $resolvedMusic. Run again with -RegenerateMusic or use -NoMusic."
+    }
+
+    $rendererArguments += @('--music', $resolvedMusic)
+}
+
+& $PythonPath @rendererArguments
 if ($LASTEXITCODE -ne 0) {
     throw "Demo renderer failed with exit code $LASTEXITCODE."
 }

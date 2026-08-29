@@ -114,6 +114,8 @@ public sealed class MaxFlowSettings
 
 	public bool AutoLearnCorrections { get; set; } = _config.UI.AutoLearnCorrections;
 
+	public bool AllowTerminalPaste { get; set; }
+
 	public string TtsEngineId { get; set; } = _config.TTS.DefaultEngine;
 
 	public string TtsVoiceId { get; set; } = _config.TTS.DefaultVoice;

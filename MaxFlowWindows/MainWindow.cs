@@ -634,6 +634,8 @@ public partial class MainWindow : Window, IComponentConnector
 
 	internal System.Windows.Controls.CheckBox StartWithWindowsCheckBox;
 
+	internal System.Windows.Controls.CheckBox AllowTerminalPasteCheckBox;
+
 	internal TextBlock WhisperModelPathTextBlock;
 
 	internal TextBlock WhisperWrapperPathTextBlock;
@@ -1661,6 +1663,7 @@ public partial class MainWindow : Window, IComponentConnector
 		ShowWidgetCheckBox.IsChecked = _settings.ShowShortcutWidget;
 		MinimizeToTrayCheckBox.IsChecked = _settings.MinimizeToTray;
 		StartWithWindowsCheckBox.IsChecked = _settings.StartWithWindows;
+		AllowTerminalPasteCheckBox.IsChecked = _settings.AllowTerminalPaste;
 		UpdateShortcutUi();
 		_isLoading = false;
 	}
@@ -7129,6 +7132,7 @@ public partial class MainWindow : Window, IComponentConnector
 			ShowShortcutWidget = (ShowWidgetCheckBox.IsChecked == true),
 			MinimizeToTray = (MinimizeToTrayCheckBox.IsChecked == true),
 			StartWithWindows = (StartWithWindowsCheckBox.IsChecked == true),
+			AllowTerminalPaste = (AllowTerminalPasteCheckBox.IsChecked == true),
 			RecordingRetentionDays = ((RecordingRetentionComboBox.SelectedValue is int num4) ? num4 : _settings.RecordingRetentionDays),
 			ShowCompletionToast = (ShowCompletionToastCheckBox.IsChecked == true),
 			AutoLearnCorrections = (AutoLearnCorrectionsCheckBox.IsChecked == true),
@@ -7639,7 +7643,7 @@ public partial class MainWindow : Window, IComponentConnector
 
 		bool shouldPaste = FirstNonEmpty(outputDestinationOverride ?? "", _settings.OutputDestinationId)
 			.Equals("paste", StringComparison.OrdinalIgnoreCase);
-		if (shouldPaste && !PasteGuard.IsSafeToPaste(_deliveryTargetWindow))
+		if (shouldPaste && !PasteGuard.IsSafeToPaste(_deliveryTargetWindow, allowTerminalPaste: _settings.AllowTerminalPaste))
 		{
 			StatusTextBlock.Text = "Paste guarded: target could not be verified or appears sensitive";
 			AppLog.Warn($"Paste blocked by PasteGuard for target '{_deliveryTargetProcessName}'");
@@ -7662,7 +7666,7 @@ public partial class MainWindow : Window, IComponentConnector
 			StatusTextBlock.Text = "Copied to clipboard; target app was unavailable";
 			return;
 		}
-		if (!PasteGuard.IsSafeToPaste(_deliveryTargetWindow, requireForeground: true))
+		if (!PasteGuard.IsSafeToPaste(_deliveryTargetWindow, requireForeground: true, allowTerminalPaste: _settings.AllowTerminalPaste))
 		{
 			StatusTextBlock.Text = "Copied to clipboard; focused field was sensitive or could not be verified";
 			AppLog.Warn($"Paste blocked after focus verification for target '{_deliveryTargetProcessName}'.");
@@ -7671,7 +7675,7 @@ public partial class MainWindow : Window, IComponentConnector
 		for (int attempt = 1; attempt <= 3; attempt++)
 		{
 			await Task.Delay(PasteDelayForTarget(_deliveryTargetProcessName, attempt));
-			if (!PasteGuard.IsSafeToPaste(_deliveryTargetWindow, requireForeground: true))
+			if (!PasteGuard.IsSafeToPaste(_deliveryTargetWindow, requireForeground: true, allowTerminalPaste: _settings.AllowTerminalPaste))
 			{
 				StatusTextBlock.Text = "Copied to clipboard; paste target changed";
 				return;
@@ -7688,7 +7692,7 @@ public partial class MainWindow : Window, IComponentConnector
 			AppLog.Warn($"Paste shortcut attempt {attempt} failed.");
 			await TryRestoreDeliveryTargetAsync();
 		}
-		if (PasteGuard.IsSafeToPaste(_deliveryTargetWindow, requireForeground: true) && TrySendKeysPaste())
+		if (PasteGuard.IsSafeToPaste(_deliveryTargetWindow, requireForeground: true, allowTerminalPaste: _settings.AllowTerminalPaste) && TrySendKeysPaste())
 		{
 			StatusTextBlock.Text = "Pasted into active app";
 			ShowCompletionToast("Speak pasted", PreviewToastText(text));
@@ -8339,6 +8343,7 @@ public partial class MainWindow : Window, IComponentConnector
 			ShowShortcutWidget = (ShowWidgetCheckBox.IsChecked == true),
 			MinimizeToTray = (MinimizeToTrayCheckBox.IsChecked == true),
 			StartWithWindows = (StartWithWindowsCheckBox.IsChecked == true),
+			AllowTerminalPaste = (AllowTerminalPasteCheckBox.IsChecked == true),
 			RecordingRetentionDays = ((RecordingRetentionComboBox.SelectedValue is int num4) ? num4 : MaxFlowSettings.Default.RecordingRetentionDays),
 			ShowCompletionToast = (ShowCompletionToastCheckBox.IsChecked == true),
 			AutoLearnCorrections = (AutoLearnCorrectionsCheckBox.IsChecked == true),
@@ -8726,6 +8731,7 @@ public partial class MainWindow : Window, IComponentConnector
 		ShowWidgetCheckBox.IsChecked = _settings.ShowShortcutWidget;
 		MinimizeToTrayCheckBox.IsChecked = _settings.MinimizeToTray;
 		StartWithWindowsCheckBox.IsChecked = _settings.StartWithWindows;
+		AllowTerminalPasteCheckBox.IsChecked = _settings.AllowTerminalPaste;
 	}
 
 	private TranscriptionModelOption? SelectedTranscriptionModel()

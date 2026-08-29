@@ -11,6 +11,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 WIDTH = 1920
 HEIGHT = 1080
+DEMO_DURATION_SECONDS = 60
 BG = "#111214"
 PANEL = "#18191c"
 LINE = "#303136"
@@ -133,11 +134,18 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--ffmpeg", required=True)
     parser.add_argument("--output", required=True)
+    parser.add_argument(
+        "--music",
+        help="Optional soundtrack file. When omitted, the demo remains video-only.",
+    )
     args = parser.parse_args()
 
     repo = Path(__file__).resolve().parents[1]
     output = Path(args.output).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
+    music = Path(args.music).resolve() if args.music else None
+    if music is not None and not music.is_file():
+        parser.error(f"Music file does not exist: {music}")
 
     slides = [
         Slide(6, "PRIVATE · LOCAL-FIRST · WINDOWS", "Talk naturally. Get polished text.", "Speak turns your voice into useful writing in any Windows application.", callout="One shortcut. Your words. Your control."),
@@ -146,8 +154,13 @@ def main() -> None:
         Slide(10, "PERSONAL DICTIONARY", "Teach Speak the words you use.", "Save names, products, technical terms, symbols, and preferred written forms so repeated corrections become unnecessary.", "docs/screenshots/dictionary.png", "Your vocabulary, on your machine"),
         Slide(9, "VOICE PROFILE", "See what the app has learned.", "Review corrections, usage, accuracy signals, and progress without turning your writing habits into an advertising profile.", "docs/screenshots/voice-profile.png", "Corrections and progress stay visible"),
         Slide(7, "OPTIONAL LOCAL AUDIO", "Go beyond dictation when you need to.", "Use separately configured local voice tools, preview outputs, and keep heavy models offloaded when idle.", "docs/screenshots/audio-studio.png", "Advanced tools—without changing the core promise"),
-        Slide(6, "SPEAK FOR WINDOWS", "Use your voice. Keep control.", "A simple $21 one-time launch price for the official supported build. No subscriptions or recurring billing. The Apache-2.0 Community source stays open.", callout="One payment. Your voice. Your control."),
+        Slide(6, "SPEAK FOR WINDOWS", "Use your voice. Keep control.", "A planned $21 one-time launch offer for an official supported build. Checkout is not open yet. The Apache-2.0 Community source stays open.", callout="One payment. Your voice. Your control."),
     ]
+    actual_duration = sum(slide.duration for slide in slides)
+    if actual_duration != DEMO_DURATION_SECONDS:
+        raise ValueError(
+            f"Slide durations total {actual_duration}s; expected {DEMO_DURATION_SECONDS}s."
+        )
 
     with tempfile.TemporaryDirectory(prefix="speak-demo-") as temp_name:
         temp = Path(temp_name)
@@ -170,12 +183,42 @@ def main() -> None:
 
         concat_file = temp / "segments.txt"
         concat_file.write_text("\n".join(f"file '{segment.as_posix()}'" for segment in segments), encoding="utf-8")
+        video_output = temp / "video-only.mp4" if music is not None else output
         run([
             args.ffmpeg,
             "-hide_banner", "-loglevel", "error", "-y",
             "-f", "concat", "-safe", "0", "-i", str(concat_file),
-            "-c", "copy", "-movflags", "+faststart", str(output),
+            "-c", "copy", "-movflags", "+faststart", str(video_output),
         ])
+
+        if music is not None:
+            # The source asset is lossless ALAC. Normalize only at final delivery
+            # so the exported MP4 has a predictable, web-appropriate audio level.
+            fade_out_start = DEMO_DURATION_SECONDS - 4
+            audio_filter = (
+                f"[1:a:0]aresample={48_000},"
+                f"atrim=start=0:end={DEMO_DURATION_SECONDS},"
+                "asetpts=PTS-STARTPTS,"
+                "afade=t=in:st=0:d=2.5,"
+                f"afade=t=out:st={fade_out_start}:d=4,"
+                "loudnorm=I=-21.5:LRA=5:TP=-2.5,"
+                "aformat=sample_rates=48000:channel_layouts=stereo[audio]"
+            )
+            run([
+                args.ffmpeg,
+                "-hide_banner", "-loglevel", "error", "-y",
+                "-i", str(video_output),
+                "-stream_loop", "-1", "-i", str(music),
+                "-filter_complex", audio_filter,
+                "-map", "0:v:0", "-map", "[audio]",
+                "-t", str(DEMO_DURATION_SECONDS),
+                "-c:v", "copy",
+                "-c:a", "aac", "-profile:a", "aac_low", "-b:a", "128k",
+                "-ar", "48000", "-ac", "2",
+                "-movflags", "+faststart",
+                "-metadata", "title=Speak for Windows — one-minute product demo",
+                str(output),
+            ])
 
     print(output)
 

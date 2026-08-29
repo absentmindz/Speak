@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "title": "Speak for Windows — one-minute product demo",
+  "file": "docs/demo/speak-demo.mp4",
+  "sha256": "8c519c7858b8ebf175e5af7b0946a61c6d0293485fa536e2f493cae98f8f849c",
+  "durationSeconds": 60.0,
+  "sizeBytes": 3679985,
+  "fastStart": true,
+  "video": {
+    "codec": "H.264 High",
+    "width": 1920,
+    "height": 1080,
+    "frameRate": 30,
+    "pixelFormat": "yuv420p"
+  },
+  "audio": {
+    "codec": "AAC-LC",
+    "sampleRateHz": 48000,
+    "channels": 2,
+    "channelLayout": "stereo",
+    "nominalBitRateKbps": 128,
+    "integratedLufs": -21.4,
+    "loudnessRangeLu": 2.5,
+    "truePeakDbtp": -10.9,
+    "fadeInSeconds": 2.5,
+    "fadeOutSeconds": 4.0
+  },
+  "soundtrack": {
+    "title": "Quiet Momentum",
+    "artist": "Speak Project",
+    "file": "marketing/audio/speak-demo-original-bed.m4a",
+    "sha256": "a35b80c74be7a78e7a40c3ec045f1aeb832232f8e23a94178b111961b97f155b",
+    "codec": "ALAC",
+    "sampleRateHz": 48000,
+    "channels": 2,
+    "durationSeconds": 60.0,
+    "sourceGenerator": "marketing/generate_demo_music.py",
+    "provenance": "Project-original deterministic additive synthesis; no samples, recordings, AI-generated audio, or third-party material.",
+    "license": "Apache-2.0"
+  },
+  "validation": {
+    "tool": "FFmpeg/FFprobe 8.1.2",
+    "fullDecodePassed": true,
+    "containerDurationPassed": true,
+    "streamDurationPassed": true,
+    "fastStartAtomOrderPassed": true,
+    "loudnessMeasuredWith": "ebur128=peak=true"
+  }
+}

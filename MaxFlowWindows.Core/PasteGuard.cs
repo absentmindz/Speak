@@ -8,15 +8,24 @@ namespace MaxFlowWindows.Core;
 
 public static class PasteGuard
 {
-	private static readonly HashSet<string> SensitiveProcesses = new(StringComparer.OrdinalIgnoreCase)
+	private static readonly HashSet<string> TerminalProcesses = new(StringComparer.OrdinalIgnoreCase)
 	{
-		"cmd", "powershell", "pwsh", "wsl", "windowsterminal",
+		"cmd", "powershell", "pwsh", "wsl", "windowsterminal"
+	};
+
+	private static readonly HashSet<string> AlwaysBlockedProcesses = new(StringComparer.OrdinalIgnoreCase)
+	{
 		"mstsc", "keepass", "keepassxc", "1password", "bitwarden"
 	};
 
-	private static readonly string[] SensitiveNameFragments =
+	private static readonly string[] TerminalNameFragments =
 	{
-		"terminal", "console", "password", "credential", "login", "remote"
+		"terminal", "console"
+	};
+
+	private static readonly string[] AlwaysBlockedNameFragments =
+	{
+		"password", "credential", "login", "remote"
 	};
 
 	[DllImport("user32.dll")]
@@ -28,7 +37,7 @@ public static class PasteGuard
 	[DllImport("user32.dll", CharSet = CharSet.Unicode)]
 	private static extern int GetClassName(nint hWnd, [Out] char[] className, int maxCount);
 
-	public static bool IsSafeToPaste(nint targetWindow, bool requireForeground = false)
+	public static bool IsSafeToPaste(nint targetWindow, bool requireForeground = false, bool allowTerminalPaste = false)
 	{
 		// Paste is an externally visible action. If the target cannot be
 		// positively identified, fail closed and leave the text on the clipboard.
@@ -45,14 +54,15 @@ public static class PasteGuard
 
 			using Process process = Process.GetProcessById((int)pid);
 			string name = process.ProcessName;
-			if (SensitiveProcesses.Contains(name) || ContainsSensitiveFragment(name))
-				return false;
 
 			char[] className = new char[256];
 			int classNameLength = GetClassName(targetWindow, className, className.Length);
 			if (classNameLength <= 0)
 				return false;
-			if (ContainsSensitiveFragment(new string(className, 0, classNameLength)))
+			if (IsTargetBlocked(
+				name,
+				new string(className, 0, classNameLength),
+				allowTerminalPaste))
 				return false;
 
 			if (requireForeground)
@@ -90,9 +100,25 @@ public static class PasteGuard
 		}
 	}
 
-	private static bool ContainsSensitiveFragment(string value)
+	internal static bool IsTargetBlocked(
+		string processName,
+		string windowClassName,
+		bool allowTerminalPaste = false)
 	{
-		foreach (string fragment in SensitiveNameFragments)
+		if (AlwaysBlockedProcesses.Contains(processName) ||
+			ContainsAnyFragment(processName, AlwaysBlockedNameFragments) ||
+			ContainsAnyFragment(windowClassName, AlwaysBlockedNameFragments))
+			return true;
+
+		return !allowTerminalPaste &&
+			(TerminalProcesses.Contains(processName) ||
+			ContainsAnyFragment(processName, TerminalNameFragments) ||
+			ContainsAnyFragment(windowClassName, TerminalNameFragments));
+	}
+
+	private static bool ContainsAnyFragment(string value, string[] fragments)
+	{
+		foreach (string fragment in fragments)
 		{
 			if (value.Contains(fragment, StringComparison.OrdinalIgnoreCase))
 				return true;

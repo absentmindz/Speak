@@ -997,7 +997,8 @@
                 <ComboBox Name="AudioInputComboBox" Margin="0,8,0,16" SelectionChanged="SettingsControl_Changed" />
                 <TextBlock Text="After transcription" FontWeight="SemiBold" Foreground="{DynamicResource InkBrush}" />
                 <ComboBox Name="OutputDestinationComboBox" Margin="0,8,0,16" SelectionChanged="SettingsControl_Changed" />
-                <TextBlock Text="LLM polish" FontWeight="SemiBold" Foreground="{DynamicResource InkBrush}" />
+                <CheckBox Name="AllowTerminalPasteCheckBox" Margin="0,0,0,22" Checked="SettingsControl_Changed" Unchecked="SettingsControl_Changed">Allow paste into terminals and consoles</CheckBox>
+                <TextBlock Text="LLM Polish" FontWeight="SemiBold" Foreground="{DynamicResource InkBrush}" />
                 <ComboBox Name="LlmPolishProviderComboBox" Margin="0,8,0,12" SelectionChanged="SettingsControl_Changed" />
                 <TextBlock Name="LlmPolishStatusTextBlock" TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" FontSize="12" Margin="0,0,0,14" />
                 <TextBlock Text="Polish model" FontWeight="SemiBold" Foreground="{DynamicResource InkBrush}" />

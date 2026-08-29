@@ -92,7 +92,10 @@ jobs:
         shell: pwsh
         run: |
           python -m compileall -q tools
-          python -m py_compile marketing/render_demo.py
+          python -m py_compile `
+            marketing/render_demo.py `
+            marketing/generate_demo_music.py `
+            marketing/generate_site_assets.py
           if ($LASTEXITCODE -ne 0) { throw "Python syntax validation failed." }
 
       - name: Validate commercial launch and MSIX readiness assets

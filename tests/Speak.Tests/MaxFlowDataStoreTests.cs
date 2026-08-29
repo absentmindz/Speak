@@ -7,6 +7,19 @@ namespace Speak.Tests;
 public sealed class MaxFlowDataStoreTests
 {
     [Fact]
+    public void AllowTerminalPasteRoundTripsThroughSettingsStore()
+    {
+        using var directory = new TestDirectory();
+        var store = new MaxFlowDataStore(directory.Path);
+        var settings = MaxFlowSettings.Default;
+        settings.AllowTerminalPaste = true;
+
+        store.SaveSettings(settings);
+
+        Assert.True(store.LoadSettings().AllowTerminalPaste);
+    }
+
+    [Fact]
     public void SaveHistoryAtomicallyPromotesPreviousVersionToBackup()
     {
         using var directory = new TestDirectory();
