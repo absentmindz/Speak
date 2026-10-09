@@ -25,4 +25,4 @@ tiktoken==0.13.0
 torch==2.13.0+cu126
 tqdm==4.69.1
 typing_extensions==4.16.0
-urllib3==2.7.0
+urllib3==2.8.0
