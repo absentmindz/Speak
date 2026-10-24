@@ -2,7 +2,7 @@
 # Captured from the project's working Python 3.11 Whisper environment.
 --extra-index-url https://download.pytorch.org/whl/cu126
 
-certifi==2026.6.17
+certifi==2026.10.19
 charset-normalizer==3.4.7
 colorama==0.4.6
 filelock==3.29.5
