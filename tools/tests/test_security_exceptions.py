@@ -36,7 +36,7 @@ class SecurityExceptionRegistryTests(unittest.TestCase):
             REPO_ROOT,
             self.workflow,
             self.security,
-            today=date(2026, 7, 28),
+            today=date(2026, 11, 14),
         )
 
     def test_expired_exception_is_rejected(self) -> None:
@@ -48,7 +48,7 @@ class SecurityExceptionRegistryTests(unittest.TestCase):
                 REPO_ROOT,
                 self.workflow,
                 self.security,
-                today=date(2026, 7, 28),
+                today=date(2026, 11, 14),
             )
 
     def test_untracked_pip_audit_ignore_is_rejected(self) -> None:
@@ -59,7 +59,7 @@ class SecurityExceptionRegistryTests(unittest.TestCase):
                 REPO_ROOT,
                 workflow,
                 self.security,
-                today=date(2026, 7, 28),
+                today=date(2026, 11, 14),
             )
 
     def test_untracked_dependency_review_allow_is_rejected(self) -> None:
@@ -73,7 +73,7 @@ class SecurityExceptionRegistryTests(unittest.TestCase):
                 REPO_ROOT,
                 workflow,
                 self.security,
-                today=date(2026, 7, 28),
+                today=date(2026, 11, 14),
             )
 
     def test_lock_pin_drift_is_rejected(self) -> None:
@@ -85,7 +85,7 @@ class SecurityExceptionRegistryTests(unittest.TestCase):
                 REPO_ROOT,
                 self.workflow,
                 self.security,
-                today=date(2026, 7, 28),
+                today=date(2026, 11, 14),
             )
 
 

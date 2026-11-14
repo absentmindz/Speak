@@ -30,8 +30,8 @@
         "tools/qwen_tts_runtime.py"
       ],
       "createdDate": "2026-07-28",
-      "lastReviewedDate": "2026-07-28",
-      "expiresDate": "2026-08-31",
+      "lastReviewedDate": "2026-11-14",
+      "expiresDate": "2026-12-31",
       "reviewCadenceDays": 7,
       "exitCriteria": "Upgrade to a tested qwen-tts release compatible with a non-vulnerable Transformers version, then remove the pip-audit ignore and this exception.",
       "upstreamReferences": [
@@ -41,7 +41,14 @@
       "enforcement": "pip-audit-ignore",
       "status": "accepted-temporary",
       "approval": "Accepted for the Speak 0.5.2 release with weekly review and expiry enforcement.",
-      "renewalHistory": []
+      "renewalHistory": [
+        {
+          "reviewedDate": "2026-11-14",
+          "previousExpiresDate": "2026-08-31",
+          "expiresDate": "2026-12-31",
+          "reason": "Renewed after confirming the technical blocker and documented compensating controls are unchanged."
+        }
+      ]
     },
     {
       "id": "SEC-2026-002",
@@ -69,8 +76,8 @@
         "tools/qwen_tts_runtime.py"
       ],
       "createdDate": "2026-07-28",
-      "lastReviewedDate": "2026-07-28",
-      "expiresDate": "2026-08-31",
+      "lastReviewedDate": "2026-11-14",
+      "expiresDate": "2026-12-31",
       "reviewCadenceDays": 7,
       "exitCriteria": "Upgrade to a tested qwen-tts release compatible with Transformers 5.3 or later and remove this exception.",
       "upstreamReferences": [
@@ -80,7 +87,14 @@
       "enforcement": "pip-audit-ignore",
       "status": "accepted-temporary",
       "approval": "Accepted for the Speak 0.5.2 release with offline-only model loading and expiry enforcement.",
-      "renewalHistory": []
+      "renewalHistory": [
+        {
+          "reviewedDate": "2026-11-14",
+          "previousExpiresDate": "2026-08-31",
+          "expiresDate": "2026-12-31",
+          "reason": "Renewed after confirming the technical blocker and documented compensating controls are unchanged."
+        }
+      ]
     },
     {
       "id": "SEC-2026-003",
@@ -108,8 +122,8 @@
         "tools/qwen_tts_runtime.py"
       ],
       "createdDate": "2026-07-28",
-      "lastReviewedDate": "2026-07-28",
-      "expiresDate": "2026-08-31",
+      "lastReviewedDate": "2026-11-14",
+      "expiresDate": "2026-12-31",
       "reviewCadenceDays": 7,
       "exitCriteria": "Upgrade to a tested qwen-tts release compatible with Transformers 5.5 or later and remove this exception.",
       "upstreamReferences": [
@@ -119,7 +133,14 @@
       "enforcement": "pip-audit-ignore",
       "status": "accepted-temporary",
       "approval": "Accepted for the Speak 0.5.2 release because the affected model family is not reachable and local model validation is enforced.",
-      "renewalHistory": []
+      "renewalHistory": [
+        {
+          "reviewedDate": "2026-11-14",
+          "previousExpiresDate": "2026-08-31",
+          "expiresDate": "2026-12-31",
+          "reason": "Renewed after confirming the technical blocker and documented compensating controls are unchanged."
+        }
+      ]
     },
     {
       "id": "SEC-2026-004",
@@ -146,8 +167,8 @@
         "tools/qwen_tts_runtime.py"
       ],
       "createdDate": "2026-07-28",
-      "lastReviewedDate": "2026-07-28",
-      "expiresDate": "2026-08-31",
+      "lastReviewedDate": "2026-11-14",
+      "expiresDate": "2026-12-31",
       "reviewCadenceDays": 7,
       "exitCriteria": "Upgrade the Qwen stack to a non-vulnerable Transformers release and remove this exception.",
       "upstreamReferences": [
@@ -157,7 +178,14 @@
       "enforcement": "pip-audit-ignore",
       "status": "accepted-temporary",
       "approval": "Accepted for the Speak 0.5.2 release with local data-only model restrictions and expiry enforcement.",
-      "renewalHistory": []
+      "renewalHistory": [
+        {
+          "reviewedDate": "2026-11-14",
+          "previousExpiresDate": "2026-08-31",
+          "expiresDate": "2026-12-31",
+          "reason": "Renewed after confirming the technical blocker and documented compensating controls are unchanged."
+        }
+      ]
     },
     {
       "id": "SEC-2026-005",
@@ -184,8 +212,8 @@
         "tools/qwen_tts_runtime.py"
       ],
       "createdDate": "2026-07-28",
-      "lastReviewedDate": "2026-07-28",
-      "expiresDate": "2026-08-31",
+      "lastReviewedDate": "2026-11-14",
+      "expiresDate": "2026-12-31",
       "reviewCadenceDays": 7,
       "exitCriteria": "Move Qwen to a tested, officially matched Torch and TorchAudio pair at or above the patched Torch version, then close the open alert and remove this exception.",
       "upstreamReferences": [
@@ -196,7 +224,14 @@
       "enforcement": "dependabot-open",
       "status": "accepted-temporary",
       "approval": "Accepted for the Speak 0.5.2 release while the alert remains visible and matching official binaries are unavailable.",
-      "renewalHistory": []
+      "renewalHistory": [
+        {
+          "reviewedDate": "2026-11-14",
+          "previousExpiresDate": "2026-08-31",
+          "expiresDate": "2026-12-31",
+          "reason": "Renewed after confirming the technical blocker and documented compensating controls are unchanged."
+        }
+      ]
     },
     {
       "id": "SEC-2026-006",
@@ -224,8 +259,8 @@
         "tools/tests/test_security_exceptions.py"
       ],
       "createdDate": "2026-07-28",
-      "lastReviewedDate": "2026-07-28",
-      "expiresDate": "2026-08-31",
+      "lastReviewedDate": "2026-11-14",
+      "expiresDate": "2026-12-31",
       "reviewCadenceDays": 7,
       "exitCriteria": "Move Qwen to a tested Torch release that permits setuptools 83.0.0 or later, then remove the audit ignore and this exception.",
       "upstreamReferences": [
@@ -235,7 +270,14 @@
       "enforcement": "pip-audit-ignore",
       "status": "accepted-temporary",
       "approval": "Accepted for the Windows-only Speak 0.5.2 release because the affected source-distribution path is not used.",
-      "renewalHistory": [],
+      "renewalHistory": [
+        {
+          "reviewedDate": "2026-11-14",
+          "previousExpiresDate": "2026-08-31",
+          "expiresDate": "2026-12-31",
+          "reason": "Renewed after confirming the technical blocker and documented compensating controls are unchanged."
+        }
+      ],
       "dependencyReviewAllow": true
     }
   ]
