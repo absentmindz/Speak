@@ -149,7 +149,7 @@ class LaunchSiteContractTests(unittest.TestCase):
         self.assertEqual(len(matches), 1)
         structured_data = json.loads(matches[0])
         self.assertEqual(structured_data["@type"], "SoftwareApplication")
-        self.assertEqual(structured_data["softwareVersion"], "0.5.2")
+        self.assertEqual(structured_data["softwareVersion"], "0.5.3rc")
         offers = structured_data.get("offers", [])
         if isinstance(offers, dict):
             offers = [offers]
