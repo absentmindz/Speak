@@ -22,6 +22,7 @@ ADVISORY_PATTERN = re.compile(
 REQUIRED_FIELDS = {
     "id",
     "advisoryIds",
+    "pipAuditIgnoreIds",
     "package",
     "pinnedVersion",
     "lockPath",
@@ -161,8 +162,6 @@ def validate_registry(
             if normalized in seen_advisory_ids:
                 raise RegistryError(f"Advisory {advisory} appears in more than one exception.")
             seen_advisory_ids.add(normalized)
-            if advisory.upper().startswith("PYSEC-"):
-                expected_pip_ignores.add(advisory.upper())
             if dependency_review_allow and advisory.upper().startswith("GHSA-"):
                 expected_dependency_review_allows.add(advisory.upper())
         if dependency_review_allow and not any(
@@ -170,6 +169,33 @@ def validate_registry(
         ):
             raise RegistryError(
                 f"{exception_id}: dependencyReviewAllow requires a GHSA id."
+            )
+
+        audit_ignore_ids = _require_text_list(
+            raw_entry, "pipAuditIgnoreIds", exception_id, allow_empty=True
+        )
+        advisory_ids_upper = {advisory.upper() for advisory in advisories}
+        for ignore_id in audit_ignore_ids:
+            if not ADVISORY_PATTERN.fullmatch(ignore_id):
+                raise RegistryError(
+                    f"{exception_id}: malformed pipAuditIgnoreIds entry {ignore_id!r}."
+                )
+            if ignore_id.upper() not in advisory_ids_upper:
+                raise RegistryError(
+                    f"{exception_id}: pipAuditIgnoreIds entry {ignore_id!r} "
+                    "is not listed in advisoryIds."
+                )
+        if enforcement == "pip-audit-ignore":
+            if not audit_ignore_ids:
+                raise RegistryError(
+                    f"{exception_id}: pip-audit-ignore requires pipAuditIgnoreIds."
+                )
+            expected_pip_ignores.update(
+                ignore_id.upper() for ignore_id in audit_ignore_ids
+            )
+        elif audit_ignore_ids:
+            raise RegistryError(
+                f"{exception_id}: dependabot-open must not add pip-audit ignores."
             )
 
         _require_text_list(raw_entry, "compensatingControls", exception_id)
@@ -225,10 +251,6 @@ def validate_registry(
 
         if exception_id not in security_text:
             raise RegistryError(f"{exception_id}: SECURITY.md does not reference this exception.")
-        if enforcement == "pip-audit-ignore" and not any(
-            advisory.upper().startswith("PYSEC-") for advisory in advisories
-        ):
-            raise RegistryError(f"{exception_id}: pip-audit-ignore requires a PYSEC id.")
         if enforcement == "dependabot-open" and any(
             advisory.upper().startswith("PYSEC-") for advisory in advisories
         ):
@@ -238,7 +260,7 @@ def validate_registry(
 
     workflow_ignores = {
         match.upper()
-        for match in re.findall(r"--ignore-vuln\s+(PYSEC-\d{4}-\d+)", workflow_text)
+        for match in re.findall(r"--ignore-vuln\s+([A-Za-z0-9-]+)", workflow_text)
     }
     if workflow_ignores != expected_pip_ignores:
         missing = sorted(expected_pip_ignores - workflow_ignores)
