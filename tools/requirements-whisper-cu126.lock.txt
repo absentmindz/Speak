@@ -2,10 +2,10 @@
 # Captured from the project's working Python 3.11 Whisper environment.
 --extra-index-url https://download.pytorch.org/whl/cu126
 
-certifi==2026.6.17
+certifi==2026.10.19
 charset-normalizer==3.4.7
 colorama==0.4.6
-filelock==3.29.5
+filelock==4.2.1
 fsspec==2026.6.0
 idna==3.18
 Jinja2==3.1.6
@@ -25,4 +25,4 @@ tiktoken==0.13.0
 torch==2.13.0+cu126
 tqdm==4.69.1
 typing_extensions==4.16.0
-urllib3==2.7.0
+urllib3==2.8.0

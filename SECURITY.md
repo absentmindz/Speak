@@ -43,6 +43,10 @@ November 14, 2026:
 | `SEC-2026-004` | `transformers==4.57.3` | X-CLIP checkpoint conversion | X-CLIP is not used and pickle/executable model material is rejected. |
 | `SEC-2026-005` | `torch==2.12.1+cu126` | `torch.jit.script` memory corruption | Qwen does not use that API; an official matching TorchAudio 2.13 CUDA 12.6 build is not available. The Dependabot alert remains open. |
 | `SEC-2026-006` | `setuptools==81.0.0` | macOS source-distribution Unicode exclusion bypass | Speak is Windows-only and consumes wheels; Torch 2.12 requires setuptools below the patched 83.0.0 release. |
+| `SEC-2026-007` | `accelerate==1.12.0` | Sharded checkpoint `weight_map` path traversal and denial of service | qwen-tts pins this release and no patched upstream version is available. |
+| `SEC-2026-008` | `transformers==4.57.3` | Chat-template path traversal and pre-consent custom-code download | qwen-tts pins 4.57.3; the patched 5.10 line is not Qwen-compatible and one advisory has no fix. |
+| `SEC-2026-009` | `setuptools==81.0.0` | Windows legacy-wheel namespace-package path escape | Torch 2.12.1 requires setuptools<82; Speak installs pinned prebuilt wheels only. |
+| `SEC-2026-010` | `pillow==12.3.0` | Multiple image-decoding and parsing advisories | Gradio 6.17.3 requires pillow<13; newer Gradio needs huggingface-hub>=1.16, but Transformers 4.57.3 requires <1.0. |
 
 The separate Whisper runtime is pinned to patched `torch==2.13.0+cu126` in 0.5.2.
 Removing an exception requires a tested compatible upstream stack, removal of the corresponding

@@ -62,6 +62,17 @@ class SecurityExceptionRegistryTests(unittest.TestCase):
                 today=date(2026, 11, 14),
             )
 
+    def test_untracked_ghsa_ignore_is_rejected(self) -> None:
+        workflow = self.workflow + "\n# --ignore-vuln GHSA-xxxx-yyyy-zzzz\n"
+        with self.assertRaisesRegex(VALIDATOR.RegistryError, "ignore drift"):
+            VALIDATOR.validate_registry(
+                copy.deepcopy(self.registry),
+                REPO_ROOT,
+                workflow,
+                self.security,
+                today=date(2026, 11, 14),
+            )
+
     def test_untracked_dependency_review_allow_is_rejected(self) -> None:
         workflow = self.workflow.replace(
             "allow-ghsas: GHSA-h35f-9h28-mq5c",
